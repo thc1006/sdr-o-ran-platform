@@ -1,0 +1,364 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oai-cu-cp
+  namespace: oran-platform
+  labels:
+    app: oai-cu-cp
+    component: oran-cu-cp
+    oran.alliance.org/component: centralized-unit-cp
+    3gpp.org/layer: pdcp-rrc-sdap
+  annotations:
+    description: "OpenAirInterface 5G NR Centralized Unit - Control Plane (O-CU-CP)"
+    oran.alliance.org/architecture: "O-RAN"
+spec:
+  replicas: 2  # CU-CP can be replicated for high availability
+  selector:
+    matchLabels:
+      app: oai-cu-cp
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  template:
+    metadata:
+      labels:
+        app: oai-cu-cp
+        component: oran-cu-cp
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [oai-cu-cp]
+                topologyKey: kubernetes.io/hostname
+
+      containers:
+        - name: oai-cu-cp
+          image: ghcr.io/openairinterface/oai-gnb:2025.w25
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - /opt/oai-gnb/bin/nr-cucp
+
+          args:
+            - -O
+            - /opt/oai-gnb/etc/cu_cp.conf
+            - --sa
+            - --log_config.global_log_level
+            - info
+
+          env:
+            # F1 Interface (to DU)
+            - name: F1_CU_IPV4_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: F1_CU_PORT
+              value: "2153"
+
+            # E1 Interface (to CU-UP)
+            - name: E1_CU_CP_IPV4_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: E1_CU_UP_IPV4_ADDRESS
+              value: "oai-cu-up.oran-platform.svc.cluster.local"
+            - name: E1_PORT
+              value: "38462"
+
+            # N2 Interface (to AMF - 5G Core)
+            - name: AMF_IPV4_ADDRESS
+              value: "oai-amf.core5g.svc.cluster.local"
+            - name: AMF_PORT
+              value: "38412"
+
+            # PLMN Configuration
+            - name: MCC
+              value: "001"
+            - name: MNC
+              value: "01"
+            - name: TAC
+              value: "1"
+
+          ports:
+            # F1-C Interface (to DU)
+            - name: f1-c
+              containerPort: 2153
+              protocol: SCTP
+
+            # E1 Interface (to CU-UP)
+            - name: e1
+              containerPort: 38462
+              protocol: SCTP
+
+            # N2 Interface (to AMF)
+            - name: n2
+              containerPort: 38412
+              protocol: SCTP
+
+            # Metrics
+            - name: metrics
+              containerPort: 9091
+              protocol: TCP
+
+          volumeMounts:
+            - name: config
+              mountPath: /opt/oai-gnb/etc
+              readOnly: true
+
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 2Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - pgrep -f nr-cucp
+            initialDelaySeconds: 30
+            periodSeconds: 30
+
+          readinessProbe:
+            tcpSocket:
+              port: 2153
+            initialDelaySeconds: 15
+            periodSeconds: 10
+
+      volumes:
+        - name: config
+          configMap:
+            name: oai-cu-cp-config
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oai-cu-up
+  namespace: oran-platform
+  labels:
+    app: oai-cu-up
+    component: oran-cu-up
+    oran.alliance.org/component: centralized-unit-up
+  annotations:
+    description: "OpenAirInterface 5G NR Centralized Unit - User Plane (O-CU-UP)"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oai-cu-up
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  template:
+    metadata:
+      labels:
+        app: oai-cu-up
+        component: oran-cu-up
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9092"
+
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [oai-cu-up]
+                topologyKey: kubernetes.io/hostname
+
+      containers:
+        - name: oai-cu-up
+          image: ghcr.io/openairinterface/oai-gnb:2025.w25
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - /opt/oai-gnb/bin/nr-cuup
+
+          args:
+            - -O
+            - /opt/oai-gnb/etc/cu_up.conf
+            - --sa
+            - --log_config.global_log_level
+            - info
+
+          env:
+            # E1 Interface (to CU-CP)
+            - name: E1_CU_UP_IPV4_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: E1_CU_CP_IPV4_ADDRESS
+              value: "oai-cu-cp.oran-platform.svc.cluster.local"
+            - name: E1_PORT
+              value: "38462"
+
+            # F1-U Interface (to DU)
+            - name: F1_U_CU_IPV4_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: F1_U_DU_IPV4_ADDRESS
+              value: "oai-du.oran-platform.svc.cluster.local"
+            - name: F1_U_PORT
+              value: "2152"
+
+            # N3 Interface (to UPF - 5G Core)
+            - name: N3_IPV4_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: UPF_IPV4_ADDRESS
+              value: "oai-upf.core5g.svc.cluster.local"
+            - name: N3_PORT
+              value: "2152"
+
+            # PLMN Configuration
+            - name: MCC
+              value: "001"
+            - name: MNC
+              value: "01"
+            - name: NSSAI_SST
+              value: "1"
+            - name: NSSAI_SD
+              value: "0x000001"
+
+          ports:
+            # E1 Interface (to CU-CP)
+            - name: e1
+              containerPort: 38462
+              protocol: SCTP
+
+            # F1-U Interface (to DU)
+            - name: f1-u
+              containerPort: 2152
+              protocol: UDP
+
+            # N3 Interface (to UPF)
+            - name: n3
+              containerPort: 2152
+              protocol: UDP
+
+            # Metrics
+            - name: metrics
+              containerPort: 9092
+              protocol: TCP
+
+          volumeMounts:
+            - name: config
+              mountPath: /opt/oai-gnb/etc
+              readOnly: true
+
+          resources:
+            requests:
+              cpu: 2000m
+              memory: 4Gi
+            limits:
+              cpu: 4000m
+              memory: 8Gi
+
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - pgrep -f nr-cuup
+            initialDelaySeconds: 30
+            periodSeconds: 30
+
+          readinessProbe:
+            tcpSocket:
+              port: 38462
+            initialDelaySeconds: 15
+            periodSeconds: 10
+
+      volumes:
+        - name: config
+          configMap:
+            name: oai-cu-up-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oai-cu-cp
+  namespace: oran-platform
+  labels:
+    app: oai-cu-cp
+spec:
+  type: ClusterIP
+  selector:
+    app: oai-cu-cp
+  ports:
+    - name: f1-c
+      port: 2153
+      targetPort: 2153
+      protocol: SCTP
+    - name: e1
+      port: 38462
+      targetPort: 38462
+      protocol: SCTP
+    - name: n2
+      port: 38412
+      targetPort: 38412
+      protocol: SCTP
+    - name: metrics
+      port: 9091
+      targetPort: 9091
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oai-cu-up
+  namespace: oran-platform
+  labels:
+    app: oai-cu-up
+spec:
+  type: ClusterIP
+  selector:
+    app: oai-cu-up
+  ports:
+    - name: e1
+      port: 38462
+      targetPort: 38462
+      protocol: SCTP
+    - name: f1-u
+      port: 2152
+      targetPort: 2152
+      protocol: UDP
+    - name: n3
+      port: 2152
+      targetPort: 2152
+      protocol: UDP
+    - name: metrics
+      port: 9092
+      targetPort: 9092
+      protocol: TCP

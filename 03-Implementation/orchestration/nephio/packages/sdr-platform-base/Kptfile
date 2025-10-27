@@ -1,0 +1,48 @@
+apiVersion: kpt.dev/v1
+kind: Kptfile
+metadata:
+  name: sdr-platform-base
+  annotations:
+    config.kubernetes.io/local-config: "true"
+info:
+  description: |
+    Base package for SDR Ground Station Platform
+
+    Implements FR-SDR-004: Cloud-native deployment of SDR components
+
+    Components:
+    - SDR API Gateway (FastAPI REST API)
+    - gRPC Data Plane Server (IQ streaming)
+    - Spectrum Analyzer Service
+    - Antenna Control Service
+
+    Dependencies:
+    - Kubernetes 1.28+
+    - Istio 1.20+ (for service mesh)
+    - Prometheus (for monitoring)
+
+  site: https://github.com/your-org/sdr-oran-platform
+
+  readinessGates:
+    - conditionType: nephio.org/Specialization
+
+pipeline:
+  mutators:
+    # Nephio mutators for automatic configuration
+    - image: gcr.io/kpt-fn/set-namespace:v0.4.1
+      configMap:
+        namespace: sdr-platform
+
+    - image: gcr.io/kpt-fn/apply-setters:v0.2.0
+      configMap:
+        replicas: "3"
+        image-registry: "your-registry.io"
+        image-tag: "1.0.0"
+
+  validators:
+    # Validate Kubernetes resources
+    - image: gcr.io/kpt-fn/kubeval:v0.3.0
+
+    # Enforce security policies
+    - image: gcr.io/kpt-fn/gatekeeper:v0.2.1
+      configPath: security-policy.yaml

@@ -1,0 +1,175 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2term-router
+  namespace: ricplt
+  labels:
+    app: e2term
+data:
+  router.txt: |
+    # RMR (RIC Message Router) Static Route Table for E2 Termination
+    # Format: msg_type | meid_or_routing_endpoint | subid | target_endpoint
+    #
+    # Message Types (O-RAN E2AP):
+    # 12010 - RIC_SUB_REQ (Subscription Request)
+    # 12011 - RIC_SUB_RESP (Subscription Response)
+    # 12012 - RIC_SUB_FAILURE
+    # 12020 - RIC_INDICATION (KPM/RC indications from gNB)
+    # 12030 - RIC_CONTROL_REQ (Control Request to gNB)
+    # 12031 - RIC_CONTROL_ACK
+    # 12040 - RIC_ERROR_INDICATION
+
+    # Route E2AP messages from gNB to Subscription Manager
+    newrt|start
+    rte|12010|-1|service-ricplt-submgr-rmr.ricplt:38000
+    rte|12011|-1|service-ricplt-submgr-rmr.ricplt:38000
+    rte|12012|-1|service-ricplt-submgr-rmr.ricplt:38000
+
+    # Route indications from E2T to xApps (will be updated dynamically)
+    rte|12020|-1|service-ricxapp-kpimon-rmr.ricxapp:38000
+    rte|12020|-1|service-ricxapp-ts-xapp-rmr.ricxapp:38000
+
+    # Route control messages
+    rte|12030|-1|service-ricplt-e2term-rmr.ricplt:38000
+    rte|12031|-1|service-ricplt-submgr-rmr.ricplt:38000
+
+    # Route error indications to all xApps
+    rte|12040|-1|service-ricxapp-kpimon-rmr.ricxapp:38000
+    rte|12040|-1|service-ricxapp-ts-xapp-rmr.ricxapp:38000
+    newrt|end
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: submgr-router
+  namespace: ricplt
+  labels:
+    app: submgr
+data:
+  router.txt: |
+    # RMR Route Table for Subscription Manager
+    newrt|start
+    # Forward subscription requests to E2T
+    rte|12010|-1|service-ricplt-e2term-rmr.ricplt:38000
+
+    # Forward subscription responses to xApps
+    rte|12011|-1|service-ricxapp-kpimon-rmr.ricxapp:38000
+    rte|12011|-1|service-ricxapp-ts-xapp-rmr.ricxapp:38000
+
+    # Forward failures to xApps
+    rte|12012|-1|service-ricxapp-kpimon-rmr.ricxapp:38000
+    rte|12012|-1|service-ricxapp-ts-xapp-rmr.ricxapp:38000
+
+    # Internal subscription management messages
+    rte|13010|-1|service-ricplt-submgr-rmr.ricplt:38000
+    rte|13011|-1|service-ricplt-submgr-rmr.ricplt:38000
+    newrt|end
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: a1mediator-router
+  namespace: ricplt
+  labels:
+    app: a1mediator
+data:
+  router.txt: |
+    # RMR Route Table for A1 Mediator
+    newrt|start
+    # Route A1 policy updates to xApps
+    rte|20000|-1|service-ricxapp-ts-xapp-rmr.ricxapp:38000
+    rte|20001|-1|service-ricxapp-kpimon-rmr.ricxapp:38000
+
+    # Route A1 EI job requests to xApps
+    rte|20010|-1|service-ricxapp-qp-rmr.ricxapp:38000
+    newrt|end
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appmgr-router
+  namespace: ricplt
+  labels:
+    app: appmgr
+data:
+  router.txt: |
+    # RMR Route Table for xApp Manager
+    newrt|start
+    # Route xApp management messages
+    rte|60000|-1|service-ricplt-appmgr-rmr.ricplt:38000
+    rte|60001|-1|service-ricplt-appmgr-rmr.ricplt:38000
+    newrt|end
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2term-config
+  namespace: ricplt
+  labels:
+    app: e2term
+data:
+  config.yaml: |
+    # E2 Termination Configuration
+    e2term:
+      # SCTP configuration for E2AP
+      sctp:
+        port: 36422
+        bind_address: "0.0.0.0"
+        max_streams: 10
+        max_attempts: 5
+        timeout_ms: 5000
+
+      # E2SM (E2 Service Models) supported
+      e2sm:
+        # KPM: Key Performance Measurement
+        - name: "E2SM-KPM"
+          oid: "1.3.6.1.4.1.53148.1.1.2.2"
+          version: "2.0"
+
+        # RC: RAN Control
+        - name: "E2SM-RC"
+          oid: "1.3.6.1.4.1.53148.1.1.2.3"
+          version: "1.0"
+
+        # NI: Network Interface (custom for SDR integration)
+        - name: "E2SM-NI"
+          oid: "1.3.6.1.4.1.53148.1.1.2.100"
+          version: "1.0"
+          custom: true
+
+      # RAN Function definitions
+      ran_functions:
+        # KPM reporting
+        - id: 0
+          name: "ORAN-E2SM-KPM"
+          description: "Key Performance Measurement"
+          revision: 1
+
+        # RAN Control
+        - id: 1
+          name: "ORAN-E2SM-RC"
+          description: "RAN Control"
+          revision: 1
+
+      # gNB connection parameters
+      gnb_connections:
+        - id: "gnb-001"
+          plmn_id: "00101"  # MCC=001, MNC=01
+          global_gnb_id: 1
+          expected_address: "oai-du.oran-platform.svc.cluster.local"
+
+      # Metrics
+      metrics:
+        enabled: true
+        port: 8080
+        path: "/metrics"
+
+      # Logging
+      logging:
+        level: "info"
+        format: "json"
+        output: "stdout"

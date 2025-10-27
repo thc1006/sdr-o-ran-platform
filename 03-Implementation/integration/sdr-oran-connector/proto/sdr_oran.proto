@@ -1,0 +1,249 @@
+// Protocol Buffer Definition for SDR-to-O-RAN Data Plane
+// Implements FR-INT-001: High-performance IQ sample streaming
+// Version: 1.0.0
+// Author: thc1006@ieee.org
+
+syntax = "proto3";
+
+package sdr.oran;
+
+option java_multiple_files = true;
+option java_package = "org.oran.sdr";
+option java_outer_classname = "SdrOranProto";
+
+// =============================================================================
+// Service Definitions
+// =============================================================================
+
+// SDR IQ Sample Streaming Service
+service IQStreamService {
+  // Bidirectional streaming for real-time IQ samples
+  // SDR → O-RAN DU (uplink path from satellite)
+  rpc StreamIQ(stream IQSampleBatch) returns (stream IQAck);
+
+  // Get current stream statistics
+  rpc GetStreamStats(StreamStatsRequest) returns (StreamStatsResponse);
+
+  // Control commands
+  rpc StartStream(StreamConfig) returns (StreamResponse);
+  rpc StopStream(StreamStopRequest) returns (StreamResponse);
+  rpc UpdateDoppler(DopplerUpdate) returns (StreamResponse);
+}
+
+// Spectrum Monitoring Service
+service SpectrumMonitorService {
+  // Request spectrum data
+  rpc GetSpectrum(SpectrumRequest) returns (SpectrumData);
+
+  // Stream spectrum updates
+  rpc StreamSpectrum(SpectrumRequest) returns (stream SpectrumData);
+}
+
+// Antenna Control Service
+service AntennaControlService {
+  // Point antenna to satellite
+  rpc PointAntenna(AntennaPointingRequest) returns (AntennaPointingResponse);
+
+  // Get antenna status
+  rpc GetAntennaStatus(AntennaStatusRequest) returns (AntennaStatus);
+
+  // Track satellite (continuous pointing update)
+  rpc TrackSatellite(stream TrackingUpdate) returns (stream AntennaStatus);
+}
+
+// =============================================================================
+// Message Definitions: IQ Streaming
+// =============================================================================
+
+// IQ sample batch (optimized for high throughput)
+message IQSampleBatch {
+  // Metadata
+  string station_id = 1;              // Ground station identifier
+  string band = 2;                    // "C-band", "Ku-band", "Ka-band"
+  int64 timestamp_ns = 3;             // Nanosecond precision timestamp
+  uint64 sequence_number = 4;         // For packet loss detection
+  double center_frequency_hz = 5;     // Current center frequency
+  double sample_rate = 6;             // Samples per second
+
+  // IQ samples (interleaved I/Q pairs as float32)
+  // Format: [I0, Q0, I1, Q1, ..., In, Qn]
+  repeated float samples = 7 [packed=true];
+
+  // Optional: Compressed samples (for bandwidth optimization)
+  bytes compressed_samples = 8;       // Using zstd or similar
+
+  // Signal quality metrics
+  double snr_db = 9;                  // Signal-to-Noise Ratio
+  double receive_power_dbm = 10;      // Received signal power
+  bool agc_locked = 11;               // AGC lock status
+  double doppler_shift_hz = 12;       // Current Doppler offset
+}
+
+// Acknowledgment for received IQ batches
+message IQAck {
+  uint64 acked_sequence = 1;          // Last successfully received sequence
+  uint64 packets_received = 2;        // Total packets received
+  uint64 packets_lost = 3;            // Detected packet loss
+  double processing_latency_ms = 4;   // Processing time at receiver
+}
+
+// Stream configuration
+message StreamConfig {
+  string station_id = 1;
+  string band = 2;
+  double center_frequency_hz = 3;
+  double sample_rate = 4;
+  uint32 batch_size_samples = 5;      // Samples per batch (default: 8192)
+  bool enable_compression = 6;        // Use compressed_samples field
+  CompressionType compression = 7;
+}
+
+enum CompressionType {
+  NONE = 0;
+  ZSTD = 1;
+  LZ4 = 2;
+}
+
+// Stream stop request
+message StreamStopRequest {
+  string station_id = 1;
+}
+
+// Generic stream response
+message StreamResponse {
+  bool success = 1;
+  string message = 2;
+  int64 start_time_ns = 3;
+}
+
+// Doppler update (for LEO satellites)
+message DopplerUpdate {
+  string station_id = 1;
+  double doppler_shift_hz = 2;        // Current Doppler offset
+  double doppler_rate_hz_s = 3;       // Rate of change
+  int64 timestamp_ns = 4;
+}
+
+// =============================================================================
+// Message Definitions: Statistics
+// =============================================================================
+
+message StreamStatsRequest {
+  string station_id = 1;
+}
+
+message StreamStatsResponse {
+  string station_id = 1;
+  uint64 total_samples_sent = 2;
+  uint64 total_bytes_sent = 3;
+  double average_throughput_mbps = 4;
+  double average_latency_ms = 5;
+  uint64 packets_sent = 6;
+  uint64 packets_acked = 7;
+  uint64 packets_lost = 8;
+  double packet_loss_rate = 9;
+  int64 uptime_seconds = 10;
+}
+
+// =============================================================================
+// Message Definitions: Spectrum Monitoring
+// =============================================================================
+
+message SpectrumRequest {
+  string station_id = 1;
+  double center_frequency_hz = 2;
+  double span_hz = 3;                 // Frequency span
+  uint32 fft_size = 4;                // FFT points (512, 1024, 2048, etc.)
+  uint32 averaging = 5;               // Number of FFTs to average
+}
+
+message SpectrumData {
+  string station_id = 1;
+  int64 timestamp_ns = 2;
+  double center_frequency_hz = 3;
+  double span_hz = 4;
+  uint32 fft_size = 5;
+
+  // FFT magnitude (dBm) for each bin
+  repeated float magnitude_dbm = 6 [packed=true];
+
+  // Frequency axis (Hz)
+  repeated double frequencies_hz = 7 [packed=true];
+
+  // Peak detection
+  double peak_frequency_hz = 8;
+  double peak_power_dbm = 9;
+}
+
+// =============================================================================
+// Message Definitions: Antenna Control
+// =============================================================================
+
+message AntennaPointingRequest {
+  string station_id = 1;
+  double azimuth_deg = 2;             // Azimuth angle (0-360°)
+  double elevation_deg = 3;           // Elevation angle (0-90°)
+  double polarization_deg = 4;        // Polarization angle (optional)
+}
+
+message AntennaPointingResponse {
+  bool success = 1;
+  string message = 2;
+  double actual_azimuth_deg = 3;      // Achieved azimuth
+  double actual_elevation_deg = 4;    // Achieved elevation
+  double pointing_error_deg = 5;      // Pointing accuracy
+}
+
+message AntennaStatusRequest {
+  string station_id = 1;
+}
+
+message AntennaStatus {
+  string station_id = 1;
+  int64 timestamp_ns = 2;
+
+  // Current pointing
+  double current_azimuth_deg = 3;
+  double current_elevation_deg = 4;
+  double current_polarization_deg = 5;
+
+  // Tracking status
+  bool is_tracking = 6;
+  string target_satellite = 7;        // TLE identifier
+  double tracking_error_deg = 8;
+
+  // Motor status
+  bool azimuth_motor_ok = 9;
+  bool elevation_motor_ok = 10;
+  double azimuth_motor_current_a = 11;
+  double elevation_motor_current_a = 12;
+
+  // Environmental
+  double wind_speed_ms = 13;
+  double temperature_c = 14;
+}
+
+message TrackingUpdate {
+  string station_id = 1;
+  int64 timestamp_ns = 2;
+
+  // Target satellite TLE
+  string satellite_name = 3;
+  string tle_line1 = 4;
+  string tle_line2 = 5;
+
+  // Predicted position (from SGP4)
+  double predicted_azimuth_deg = 6;
+  double predicted_elevation_deg = 7;
+  double predicted_range_km = 8;
+  double predicted_doppler_hz = 9;
+}
+
+// =============================================================================
+// Performance Requirements (NFR-PERF-001)
+// =============================================================================
+// - Target latency: <10ms per IQ batch
+// - Throughput: 100-200 Mbps (10 MSPS @ 32-bit complex = 80 MB/s)
+// - Packet loss tolerance: <0.1%
+// - Use gRPC streaming with TCP for reliability
+// - Consider RDMA for ultra-low latency (future enhancement)

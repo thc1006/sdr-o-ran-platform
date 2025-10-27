@@ -1,0 +1,66 @@
+apiVersion: kpt.dev/v1
+kind: Kptfile
+metadata:
+  name: oai-gnb-du-cu
+  annotations:
+    config.kubernetes.io/local-config: "true"
+info:
+  description: |
+    OpenAirInterface 5G NR gNB Deployment for SDR-O-RAN Platform
+
+    This package deploys a complete 5G NR base station (gNB) with:
+    - O-DU (Distributed Unit): PHY + MAC + RLC layers
+    - O-CU-CP (Centralized Unit - Control Plane): PDCP + RRC + SDAP
+    - O-CU-UP (Centralized Unit - User Plane): PDCP + SDAP
+
+    Implements:
+    - 3GPP Release 18 5G NR
+    - O-RAN Alliance specifications (O-RAN.WG4.CUS)
+    - FAPI 5G P5/P7 interfaces
+    - F1-C and F1-U interfaces (F1AP protocol)
+    - E1 interface between CU-CP and CU-UP
+
+    Version: oai-2025.w25 (latest stable)
+    Author: thc1006@ieee.org
+    Date: 2025-10-27
+
+  readinessGates:
+    - conditionType: config.nephio.org/specialize
+    - conditionType: config.nephio.org/approve
+  site: edge-site-001
+
+pipeline:
+  mutators:
+    # Set site-specific parameters
+    - image: gcr.io/kpt-fn/apply-setters:v0.2.0
+      configMap:
+        site-id: site-001
+        cell-id: "1"
+        tracking-area-code: "1"
+        plmn-mcc: "001"  # Mobile Country Code (test network)
+        plmn-mnc: "01"   # Mobile Network Code (test network)
+        sst: "1"         # Slice/Service Type (eMBB)
+        sd: "0x000001"   # Slice Differentiator
+
+    # Apply ORAN-specific configs
+    - image: gcr.io/kpt-fn/set-annotations:v0.1.4
+      configMap:
+        oran.alliance.org/architecture-version: "11.0"
+        oran.alliance.org/release: "J"
+        3gpp.org/release: "18"
+
+  validators:
+    # Validate namespace exists
+    - image: gcr.io/kpt-fn/kubeval:v0.3.0
+
+    # Validate resource limits
+    - image: gcr.io/kpt-fn/ensure-name-substring:v0.2.0
+      configMap:
+        prepend: oai-
+
+status:
+  conditions:
+    - type: config.nephio.org/specialize
+      status: "True"
+      reason: SpecializeComplete
+      message: Package specialized for edge-site-001

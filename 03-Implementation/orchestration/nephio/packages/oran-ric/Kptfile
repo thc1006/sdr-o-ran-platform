@@ -1,0 +1,60 @@
+apiVersion: kpt.dev/v1
+kind: Kptfile
+metadata:
+  name: oran-near-rt-ric
+  annotations:
+    config.kubernetes.io/local-config: "true"
+info:
+  description: |
+    O-RAN Software Community Near-Real-Time RAN Intelligent Controller (Near-RT RIC)
+
+    This package deploys the complete Near-RT RIC platform with:
+    - E2 Termination (E2T): E2AP protocol handling for gNB communication
+    - Subscription Manager (SubMgr): E2 subscription lifecycle management
+    - Routing Manager: Message routing to xApps
+    - xApp Manager: xApp lifecycle (onboarding, deployment, configuration)
+    - SDL (Shared Data Layer): Redis-based data sharing between xApps
+    - A1 Mediator: Interface to Non-RT RIC for policy management
+    - DBAAS (Database-as-a-Service): Persistent storage for RIC data
+
+    Implements:
+    - O-RAN Alliance Near-RT RIC Architecture (Release J, April 2025)
+    - E2 Service Model (E2SM) for KPM, RC, NI
+    - A1 Policy Management Interface
+    - xApp SDK for AI/ML application development
+
+    Version: oran-sc-j-release (2025)
+    Author: thc1006@ieee.org
+    Date: 2025-10-27
+
+  readinessGates:
+    - conditionType: config.nephio.org/specialize
+    - conditionType: config.nephio.org/approve
+  site: edge-site-001
+
+pipeline:
+  mutators:
+    # Set RIC-specific parameters
+    - image: gcr.io/kpt-fn/apply-setters:v0.2.0
+      configMap:
+        ric-cluster-name: "ric-cluster-001"
+        e2t-replicas: "2"
+        a1-mediator-endpoint: "non-rt-ric.oran-platform.svc.cluster.local:8080"
+        redis-sentinel-enabled: "true"
+
+    # Apply O-RAN annotations
+    - image: gcr.io/kpt-fn/set-annotations:v0.1.4
+      configMap:
+        oran.alliance.org/component: "near-rt-ric"
+        oran.alliance.org/release: "J"
+        oran.alliance.org/architecture-version: "11.0"
+
+  validators:
+    # Validate Helm charts
+    - image: gcr.io/kpt-fn/kubeval:v0.3.0
+
+status:
+  conditions:
+    - type: config.nephio.org/specialize
+      status: "True"
+      reason: SpecializeComplete

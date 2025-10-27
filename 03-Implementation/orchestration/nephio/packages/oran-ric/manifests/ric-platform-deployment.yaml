@@ -1,0 +1,512 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ricplt
+  labels:
+    name: ricplt
+    oran.alliance.org/component: near-rt-ric
+  annotations:
+    description: "O-RAN Near-RT RIC Platform Namespace"
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ricxapp
+  labels:
+    name: ricxapp
+    oran.alliance.org/component: xapps
+  annotations:
+    description: "O-RAN xApps Namespace"
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ric-platform
+  namespace: ricplt
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ric-platform
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets", "endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ric-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ric-platform
+subjects:
+  - kind: ServiceAccount
+    name: ric-platform
+    namespace: ricplt
+
+---
+# Redis (SDL - Shared Data Layer)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-standalone
+  namespace: ricplt
+  labels:
+    app: redis
+    component: sdl
+spec:
+  serviceName: redis-standalone
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        component: sdl
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.0-alpine
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          command:
+            - redis-server
+            - --appendonly
+            - "yes"
+            - --protected-mode
+            - "no"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-standalone
+  namespace: ricplt
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: redis
+  selector:
+    app: redis
+
+---
+# E2 Termination (E2T)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e2term
+  namespace: ricplt
+  labels:
+    app: e2term
+    component: e2-termination
+    oran.alliance.org/interface: e2ap
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: e2term
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: e2term
+        component: e2-termination
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: ric-platform
+      containers:
+        - name: e2term
+          image: nexus3.o-ran-sc.org:10002/o-ran-sc/ric-plt-e2:6.0.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: sctp
+              containerPort: 36422
+              protocol: SCTP  # E2AP uses SCTP
+            - name: rmr-data
+              containerPort: 38000
+              protocol: TCP
+            - name: rmr-route
+              containerPort: 4561
+              protocol: TCP
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: RMR_SEED_RT
+              value: "/opt/e2/router.txt"
+            - name: RMR_RTG_SVC
+              value: "service-ricplt-rtmgr-rmr.ricplt:4561"
+            - name: DBAAS_SERVICE_HOST
+              value: "redis-standalone.ricplt.svc.cluster.local"
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+            - name: SCTP_PORT
+              value: "36422"
+            - name: PRINT_ASN
+              value: "1"
+          volumeMounts:
+            - name: config
+              mountPath: /opt/e2/config
+            - name: router
+              mountPath: /opt/e2
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 2Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          livenessProbe:
+            tcpSocket:
+              port: 36422
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 36422
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: e2term-config
+        - name: router
+          configMap:
+            name: e2term-router
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-ricplt-e2term-sctp
+  namespace: ricplt
+  labels:
+    app: e2term
+spec:
+  type: LoadBalancer  # Expose E2 interface externally
+  selector:
+    app: e2term
+  ports:
+    - name: sctp
+      port: 36422
+      targetPort: 36422
+      protocol: SCTP
+
+---
+# Subscription Manager
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: submgr
+  namespace: ricplt
+  labels:
+    app: submgr
+    component: subscription-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: submgr
+  template:
+    metadata:
+      labels:
+        app: submgr
+    spec:
+      serviceAccountName: ric-platform
+      containers:
+        - name: submgr
+          image: nexus3.o-ran-sc.org:10002/o-ran-sc/ric-plt-submgr:0.10.7
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: rmr-data
+              containerPort: 38000
+            - name: http
+              containerPort: 8080
+          env:
+            - name: RMR_SEED_RT
+              value: "/opt/submgr/router.txt"
+            - name: RMR_RTG_SVC
+              value: "service-ricplt-rtmgr-rmr.ricplt:4561"
+            - name: DBAAS_SERVICE_HOST
+              value: "redis-standalone.ricplt.svc.cluster.local"
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+          volumeMounts:
+            - name: router
+              mountPath: /opt/submgr
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+      volumes:
+        - name: router
+          configMap:
+            name: submgr-router
+
+---
+# Routing Manager
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtmgr
+  namespace: ricplt
+  labels:
+    app: rtmgr
+    component: routing-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rtmgr
+  template:
+    metadata:
+      labels:
+        app: rtmgr
+    spec:
+      serviceAccountName: ric-platform
+      containers:
+        - name: rtmgr
+          image: nexus3.o-ran-sc.org:10002/o-ran-sc/ric-plt-rtmgr:0.9.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: rmr-data
+              containerPort: 38000
+            - name: rmr-route
+              containerPort: 4561
+            - name: http
+              containerPort: 8080
+          env:
+            - name: RMR_SRC_ID
+              value: "service-ricplt-rtmgr-rmr"
+            - name: RMR_RTG_SVC
+              value: "4561"
+            - name: DBAAS_SERVICE_HOST
+              value: "redis-standalone.ricplt.svc.cluster.local"
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+            - name: XAPP_NAMESPACE
+              value: "ricxapp"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-ricplt-rtmgr-rmr
+  namespace: ricplt
+  labels:
+    app: rtmgr
+spec:
+  type: ClusterIP
+  selector:
+    app: rtmgr
+  ports:
+    - name: rmr-data
+      port: 38000
+      targetPort: 38000
+    - name: rmr-route
+      port: 4561
+      targetPort: 4561
+
+---
+# A1 Mediator
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a1mediator
+  namespace: ricplt
+  labels:
+    app: a1mediator
+    component: a1-interface
+    oran.alliance.org/interface: a1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: a1mediator
+  template:
+    metadata:
+      labels:
+        app: a1mediator
+    spec:
+      serviceAccountName: ric-platform
+      containers:
+        - name: a1mediator
+          image: nexus3.o-ran-sc.org:10002/o-ran-sc/ric-plt-a1:2.7.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 10000
+            - name: rmr-data
+              containerPort: 38000
+          env:
+            - name: RMR_SEED_RT
+              value: "/opt/a1mediator/router.txt"
+            - name: RMR_RTG_SVC
+              value: "service-ricplt-rtmgr-rmr.ricplt:4561"
+            - name: DBAAS_SERVICE_HOST
+              value: "redis-standalone.ricplt.svc.cluster.local"
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+            - name: A1_RMR_RETRY_TIMES
+              value: "10"
+          volumeMounts:
+            - name: router
+              mountPath: /opt/a1mediator
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+      volumes:
+        - name: router
+          configMap:
+            name: a1mediator-router
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-ricplt-a1mediator-http
+  namespace: ricplt
+  labels:
+    app: a1mediator
+spec:
+  type: ClusterIP
+  selector:
+    app: a1mediator
+  ports:
+    - name: http
+      port: 10000
+      targetPort: 10000
+
+---
+# xApp Manager (AppMgr)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appmgr
+  namespace: ricplt
+  labels:
+    app: appmgr
+    component: xapp-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appmgr
+  template:
+    metadata:
+      labels:
+        app: appmgr
+    spec:
+      serviceAccountName: ric-platform
+      containers:
+        - name: appmgr
+          image: nexus3.o-ran-sc.org:10002/o-ran-sc/ric-plt-appmgr:0.8.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: rmr-data
+              containerPort: 38000
+          env:
+            - name: RMR_SEED_RT
+              value: "/opt/appmgr/router.txt"
+            - name: RMR_RTG_SVC
+              value: "service-ricplt-rtmgr-rmr.ricplt:4561"
+            - name: DBAAS_SERVICE_HOST
+              value: "redis-standalone.ricplt.svc.cluster.local"
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+            - name: XAPP_NAMESPACE
+              value: "ricxapp"
+            - name: HELM_REPO_URL
+              value: "http://chartmuseum.ricplt:8080"
+          volumeMounts:
+            - name: router
+              mountPath: /opt/appmgr
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+      volumes:
+        - name: router
+          configMap:
+            name: appmgr-router
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-ricplt-appmgr-http
+  namespace: ricplt
+  labels:
+    app: appmgr
+spec:
+  type: ClusterIP
+  selector:
+    app: appmgr
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

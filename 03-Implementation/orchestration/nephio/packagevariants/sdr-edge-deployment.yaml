@@ -1,0 +1,174 @@
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: sdr-platform-tokyo-site
+  namespace: nephio-system
+spec:
+  upstream:
+    repo: nephio-packages
+    package: sdr-platform-base
+    revision: v1.0.0
+
+  downstream:
+    repo: tokyo-edge-site
+    package: sdr-platform-tokyo
+
+  # Inject site-specific configuration
+  injectors:
+    - name: site-config
+      configMap:
+        name: tokyo-site-config
+        namespace: nephio-system
+
+  # Apply site-specific values
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+
+  # Pipeline for site customization
+  pipeline:
+    mutators:
+      # Set site-specific namespace
+      - image: gcr.io/kpt-fn/set-namespace:v0.4.1
+        configMap:
+          namespace: sdr-platform-tokyo
+
+      # Set site-specific parameters
+      - image: gcr.io/kpt-fn/apply-setters:v0.2.0
+        configMap:
+          site-name: "tokyo-edge-site"
+          site-id: "site-001"
+          latitude: "35.6762"
+          longitude: "139.6503"
+          replicas: "3"
+          usrp-args: "type=x310,addr=192.168.10.2"
+          image-registry: "asia-northeast1-docker.pkg.dev/your-project"
+
+---
+
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: sdr-platform-london-site
+  namespace: nephio-system
+spec:
+  upstream:
+    repo: nephio-packages
+    package: sdr-platform-base
+    revision: v1.0.0
+
+  downstream:
+    repo: london-edge-site
+    package: sdr-platform-london
+
+  injectors:
+    - name: site-config
+      configMap:
+        name: london-site-config
+        namespace: nephio-system
+
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+
+  pipeline:
+    mutators:
+      - image: gcr.io/kpt-fn/set-namespace:v0.4.1
+        configMap:
+          namespace: sdr-platform-london
+
+      - image: gcr.io/kpt-fn/apply-setters:v0.2.0
+        configMap:
+          site-name: "london-edge-site"
+          site-id: "site-002"
+          latitude: "51.5074"
+          longitude: "-0.1278"
+          replicas: "2"
+          usrp-args: "type=n320,addr=192.168.20.2"
+          image-registry: "europe-west2-docker.pkg.dev/your-project"
+
+---
+
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: sdr-platform-singapore-site
+  namespace: nephio-system
+spec:
+  upstream:
+    repo: nephio-packages
+    package: sdr-platform-base
+    revision: v1.0.0
+
+  downstream:
+    repo: singapore-edge-site
+    package: sdr-platform-singapore
+
+  injectors:
+    - name: site-config
+      configMap:
+        name: singapore-site-config
+        namespace: nephio-system
+
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+
+  pipeline:
+    mutators:
+      - image: gcr.io/kpt-fn/set-namespace:v0.4.1
+        configMap:
+          namespace: sdr-platform-singapore
+
+      - image: gcr.io/kpt-fn/apply-setters:v0.2.0
+        configMap:
+          site-name: "singapore-edge-site"
+          site-id: "site-003"
+          latitude: "1.3521"
+          longitude: "103.8198"
+          replicas: "3"
+          usrp-args: "type=x310,addr=192.168.30.2"
+          image-registry: "asia-southeast1-docker.pkg.dev/your-project"
+
+---
+
+# Site Configuration Maps
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tokyo-site-config
+  namespace: nephio-system
+data:
+  site-name: "tokyo-edge-site"
+  site-id: "site-001"
+  region: "asia-northeast1"
+  timezone: "Asia/Tokyo"
+  antenna-bands: "C,Ku,Ka"
+  satellite-constellation: "LEO"
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: london-site-config
+  namespace: nephio-system
+data:
+  site-name: "london-edge-site"
+  site-id: "site-002"
+  region: "europe-west2"
+  timezone: "Europe/London"
+  antenna-bands: "Ku,Ka"
+  satellite-constellation: "LEO,GEO"
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: singapore-site-config
+  namespace: nephio-system
+data:
+  site-name: "singapore-edge-site"
+  site-id: "site-003"
+  region: "asia-southeast1"
+  timezone: "Asia/Singapore"
+  antenna-bands: "C,Ku"
+  satellite-constellation: "LEO"

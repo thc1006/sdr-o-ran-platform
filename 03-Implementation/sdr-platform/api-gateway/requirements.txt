@@ -1,0 +1,33 @@
+# SDR API Gateway Python Dependencies
+# Python 3.11+
+
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.0
+
+# Authentication & Security (NFR-SEC-001)
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Monitoring & Observability (NFR-INT-003)
+prometheus-client==0.19.0
+opentelemetry-api==1.22.0
+opentelemetry-sdk==1.22.0
+opentelemetry-instrumentation-fastapi==0.43b0
+
+# USRP / GNU Radio Integration (FR-SDR-002, FR-SDR-003)
+# 🟡 SIMULATED: Uncomment for production with real USRP hardware
+# Note: These require system-level UHD installation
+# gnuradio==3.10.9.2
+# uhd==4.6.0.0
+
+# gRPC for O-RAN integration (FR-INT-001)
+grpcio==1.60.0
+grpcio-tools==1.60.0
+protobuf==4.25.2
+
+# Utilities
+python-dateutil==2.8.2
+asyncio==3.4.3

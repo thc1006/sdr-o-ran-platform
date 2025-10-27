@@ -1,0 +1,354 @@
+# Kubernetes Deployment for SDR API Gateway
+# Implements FR-SDR-004, FR-SDR-005, NFR-REL-001, NFR-SEC-001
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sdr-platform
+  labels:
+    name: sdr-platform
+    environment: production
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sdr-api-secrets
+  namespace: sdr-platform
+type: Opaque
+stringData:
+  jwt-secret-key: "change-this-in-production-use-k8s-sealed-secrets"  # 🔴 NFR-SEC-001
+  admin-password: "change-this-secure-password"  # 🔴 NFR-SEC-001
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sdr-api-config
+  namespace: sdr-platform
+data:
+  ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+  LOG_LEVEL: "INFO"
+  API_VERSION: "v1"
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdr-api-gateway
+  namespace: sdr-platform
+  labels:
+    app: sdr-api-gateway
+    component: api-server
+    tier: control-plane
+spec:
+  replicas: 3  # NFR-REL-001: High availability
+  selector:
+    matchLabels:
+      app: sdr-api-gateway
+  strategy:
+    type: RollingUpdate  # NFR-MAINT-002: Zero-downtime updates
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: sdr-api-gateway
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: sdr-api-gateway
+      securityContext:  # NFR-SEC-001
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      # Anti-affinity for fault tolerance (NFR-REL-001)
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - sdr-api-gateway
+              topologyKey: kubernetes.io/hostname
+
+      containers:
+      - name: api-server
+        image: your-registry.io/sdr-api-gateway:1.0.0  # 🔴 Update with your registry
+        imagePullPolicy: IfNotPresent
+
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+
+        env:
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sdr-api-secrets
+              key: jwt-secret-key
+        - name: ACCESS_TOKEN_EXPIRE_MINUTES
+          valueFrom:
+            configMapKeyRef:
+              name: sdr-api-config
+              key: ACCESS_TOKEN_EXPIRE_MINUTES
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: sdr-api-config
+              key: LOG_LEVEL
+
+        # Resource requests/limits (NFR-PERF-003)
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+
+        # Liveness probe (FR-SDR-004)
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        # Readiness probe (FR-SDR-004)
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        # Security context (NFR-SEC-001)
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+        # Volume mounts for temporary files
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: app-cache
+          mountPath: /home/sdruser/.cache
+
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: app-cache
+        emptyDir: {}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: sdr-api-gateway
+  namespace: sdr-platform
+  labels:
+    app: sdr-api-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: sdr-api-gateway
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  sessionAffinity: ClientIP  # For sticky sessions if needed
+
+---
+
+# Horizontal Pod Autoscaler (NFR-PERF-003, NFR-SCAL-001)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sdr-api-gateway-hpa
+  namespace: sdr-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sdr-api-gateway
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+      - type: Pods
+        value: 2
+        periodSeconds: 30
+      selectPolicy: Max
+
+---
+
+# Service Account with RBAC (NFR-SEC-001)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sdr-api-gateway
+  namespace: sdr-platform
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sdr-api-gateway-role
+  namespace: sdr-platform
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sdr-api-gateway-rolebinding
+  namespace: sdr-platform
+subjects:
+- kind: ServiceAccount
+  name: sdr-api-gateway
+  namespace: sdr-platform
+roleRef:
+  kind: Role
+  name: sdr-api-gateway-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+# Network Policy (NFR-SEC-001)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sdr-api-gateway-netpol
+  namespace: sdr-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: sdr-api-gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: oran-platform  # Allow traffic from O-RAN namespace
+    - namespaceSelector:
+        matchLabels:
+          name: istio-system  # Allow traffic from Istio ingress
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system  # DNS
+    ports:
+    - protocol: UDP
+      port: 53
+  - to:
+    - podSelector:
+        matchLabels:
+          app: usrp-driver  # Allow communication with USRP driver pods
+    ports:
+    - protocol: TCP
+      port: 50051  # gRPC
+
+---
+
+# Pod Disruption Budget (NFR-REL-001)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sdr-api-gateway-pdb
+  namespace: sdr-platform
+spec:
+  minAvailable: 2  # At least 2 pods must be available during disruptions
+  selector:
+    matchLabels:
+      app: sdr-api-gateway
+
+---
+
+# Service Monitor for Prometheus (NFR-INT-003)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sdr-api-gateway
+  namespace: sdr-platform
+  labels:
+    app: sdr-api-gateway
+spec:
+  selector:
+    matchLabels:
+      app: sdr-api-gateway
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+
+---
+
+# 🔴 TODO for Production:
+# 1. Update image registry path
+# 2. Replace hardcoded secrets with SealedSecrets or External Secrets Operator
+# 3. Configure TLS/mTLS for service mesh (Istio)
+# 4. Set up proper monitoring dashboards (Grafana)
+# 5. Configure alerting rules (Prometheus Alertmanager)
+# 6. Implement rate limiting (via Istio VirtualService or API Gateway)

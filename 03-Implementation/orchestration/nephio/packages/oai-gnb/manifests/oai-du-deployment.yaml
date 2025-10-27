@@ -1,0 +1,305 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oai-du
+  namespace: oran-platform
+  labels:
+    app: oai-du
+    component: oran-du
+    oran.alliance.org/component: distributed-unit
+    3gpp.org/layer: phy-mac-rlc
+  annotations:
+    description: "OpenAirInterface 5G NR Distributed Unit (O-DU)"
+    oran.alliance.org/architecture: "O-RAN"
+    oran.alliance.org/release: "J"
+    3gpp.org/release: "18"
+spec:
+  replicas: 1  # DU is hardware-specific, typically 1 per cell
+  selector:
+    matchLabels:
+      app: oai-du
+
+  strategy:
+    type: Recreate  # DU requires exclusive USRP access
+
+  template:
+    metadata:
+      labels:
+        app: oai-du
+        component: oran-du
+        oran.alliance.org/component: distributed-unit
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+
+    spec:
+      # DU must run on node with USRP hardware
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: hardware.sdr/usrp
+                    operator: In
+                    values:
+                      - "true"
+                  - key: node-role.kubernetes.io/worker
+                    operator: Exists
+
+      # Host network required for low-latency SDR access
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+
+      # Security context
+      securityContext:
+        fsGroup: 2000
+        runAsNonRoot: false  # Requires root for UHD access
+
+      initContainers:
+        # Verify USRP connectivity
+        - name: usrp-probe
+          image: ghcr.io/openairinterface/oai-gnb:2025.w25
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Probing for USRP devices..."
+              uhd_find_devices || true
+              uhd_usrp_probe --args="type=x310" || echo "USRP not found (may be simulated)"
+          volumeMounts:
+            - name: dev
+              mountPath: /dev
+          securityContext:
+            privileged: true
+
+      containers:
+        - name: oai-du
+          image: ghcr.io/openairinterface/oai-gnb:2025.w25
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - /opt/oai-gnb/bin/nr-softmodem
+
+          args:
+            - -O
+            - /opt/oai-gnb/etc/gnb.conf
+            - --sa                    # Standalone mode (5G SA)
+            - --MACRLCs.[0].dl_max_mcs
+            - "28"                    # Max DL MCS (256QAM)
+            - --MACRLCs.[0].ul_max_mcs
+            - "28"                    # Max UL MCS
+            - --log_config.global_log_level
+            - info
+            - --gNBs.[0].min_rxtxtime
+            - "6"                     # Min RX-TX processing time
+
+          env:
+            # USRP Configuration
+            - name: USRP_ARGS
+              value: "type=x310,addr=192.168.10.2,master_clock_rate=184.32e6"
+            - name: USRP_CLOCK_SOURCE
+              value: "internal"  # or "gpsdo" if GPS disciplined oscillator
+            - name: USRP_TIME_SOURCE
+              value: "internal"
+
+            # 5G NR Parameters
+            - name: CELL_ID
+              value: "1"
+            - name: TRACKING_AREA_CODE
+              value: "1"
+            - name: MCC
+              value: "001"  # Test network
+            - name: MNC
+              value: "01"
+            - name: SST
+              value: "1"    # Slice/Service Type (eMBB)
+            - name: SD
+              value: "0x000001"
+
+            # F1 Interface to CU
+            - name: F1_DU_IPV4_ADDRESS
+              value: "0.0.0.0"  # Listen on all interfaces
+            - name: F1_CU_IPV4_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP  # Will be updated to CU service
+            - name: F1_DU_PORT
+              value: "2153"  # F1-C SCTP port
+
+            # FAPI Interface (to SDR gRPC server)
+            - name: FAPI_P5_ADDRESS
+              value: "sdr-grpc-server.sdr-platform.svc.cluster.local"
+            - name: FAPI_P5_PORT
+              value: "50052"  # Separate port from IQ streaming
+            - name: FAPI_P7_ADDRESS
+              value: "sdr-grpc-server.sdr-platform.svc.cluster.local"
+            - name: FAPI_P7_PORT
+              value: "50053"
+
+            # Performance Tuning
+            - name: THREAD_PARALLEL_CONFIG
+              value: "PARALLEL_RU_L1_SPLIT"
+            - name: CPU_AFFINITY
+              value: "0,1,2,3"  # Pin to specific CPUs
+
+          ports:
+            # F1-C Interface (Control Plane)
+            - name: f1-c
+              containerPort: 2153
+              protocol: SCTP
+
+            # F1-U Interface (User Plane)
+            - name: f1-u
+              containerPort: 2152
+              protocol: UDP
+
+            # Metrics
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+
+          volumeMounts:
+            # Configuration
+            - name: config
+              mountPath: /opt/oai-gnb/etc
+              readOnly: true
+
+            # Device access (for USRP)
+            - name: dev
+              mountPath: /dev
+
+            # Shared memory for high-performance IPC
+            - name: shm
+              mountPath: /dev/shm
+
+            # Logs
+            - name: logs
+              mountPath: /opt/oai-gnb/logs
+
+          resources:
+            requests:
+              cpu: 4000m        # 4 CPUs
+              memory: 8Gi
+              hugepages-1Gi: 2Gi  # For DPDK acceleration
+            limits:
+              cpu: 8000m        # 8 CPUs max
+              memory: 16Gi
+              hugepages-1Gi: 4Gi
+
+          securityContext:
+            privileged: true    # Required for UHD device access
+            capabilities:
+              add:
+                - IPC_LOCK     # For hugepages
+                - SYS_NICE     # For real-time scheduling
+                - NET_ADMIN    # For network configuration
+
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - pgrep -f nr-softmodem
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            tcpSocket:
+              port: 2153
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+
+      volumes:
+        # Configuration files
+        - name: config
+          configMap:
+            name: oai-du-config
+
+        # Device access
+        - name: dev
+          hostPath:
+            path: /dev
+            type: Directory
+
+        # Shared memory
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 4Gi
+
+        # Logs
+        - name: logs
+          emptyDir:
+            sizeLimit: 10Gi
+
+      # Termination grace period
+      terminationGracePeriodSeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oai-du
+  namespace: oran-platform
+  labels:
+    app: oai-du
+    component: oran-du
+spec:
+  type: ClusterIP
+  selector:
+    app: oai-du
+  ports:
+    # F1-C Interface
+    - name: f1-c
+      port: 2153
+      targetPort: 2153
+      protocol: SCTP
+
+    # F1-U Interface
+    - name: f1-u
+      port: 2152
+      targetPort: 2152
+      protocol: UDP
+
+    # Metrics
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oai-du
+  namespace: oran-platform
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: oai-du
+  namespace: oran-platform
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: oai-du
+  namespace: oran-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: oai-du
+subjects:
+  - kind: ServiceAccount
+    name: oai-du
+    namespace: oran-platform

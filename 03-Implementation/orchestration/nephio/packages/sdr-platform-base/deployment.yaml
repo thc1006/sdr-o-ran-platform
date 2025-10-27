@@ -1,0 +1,185 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sdr-platform # kpt-set: ${namespace}
+  labels:
+    name: sdr-platform
+    istio-injection: enabled  # Enable Istio sidecar injection
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdr-api-gateway
+  namespace: sdr-platform # kpt-set: ${namespace}
+  labels:
+    app: sdr-api-gateway
+    app.kubernetes.io/name: sdr-api-gateway
+    app.kubernetes.io/component: api-server
+    app.kubernetes.io/part-of: sdr-platform
+spec:
+  replicas: 3 # kpt-set: ${replicas}
+  selector:
+    matchLabels:
+      app: sdr-api-gateway
+  template:
+    metadata:
+      labels:
+        app: sdr-api-gateway
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: sdr-api-gateway
+      containers:
+      - name: api-server
+        image: your-registry.io/sdr-api-gateway:1.0.0 # kpt-set: ${image-registry}/sdr-api-gateway:${image-tag}
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sdr-api-secrets
+              key: jwt-secret-key
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdr-grpc-server
+  namespace: sdr-platform # kpt-set: ${namespace}
+  labels:
+    app: sdr-grpc-server
+    app.kubernetes.io/name: sdr-grpc-server
+    app.kubernetes.io/component: data-plane
+    app.kubernetes.io/part-of: sdr-platform
+spec:
+  replicas: 1  # Typically 1 per ground station
+  selector:
+    matchLabels:
+      app: sdr-grpc-server
+  template:
+    metadata:
+      labels:
+        app: sdr-grpc-server
+        version: v1
+    spec:
+      serviceAccountName: sdr-grpc-server
+      # Affinity to run on nodes with USRP hardware
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: hardware.sdr/usrp
+                operator: In
+                values:
+                - "true"
+      containers:
+      - name: grpc-server
+        image: your-registry.io/sdr-grpc-server:1.0.0 # kpt-set: ${image-registry}/sdr-grpc-server:${image-tag}
+        ports:
+        - name: grpc
+          containerPort: 50051
+        env:
+        - name: USRP_ARGS
+          value: "type=b200"  # kpt-set: ${usrp-args}
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            cpu: 2000m
+            memory: 4Gi
+          limits:
+            cpu: 4000m
+            memory: 8Gi
+        # Privileged access for USRP hardware
+        securityContext:
+          privileged: true  # Required for USB access to USRP
+        volumeMounts:
+        - name: usb-devices
+          mountPath: /dev/bus/usb
+      volumes:
+      - name: usb-devices
+        hostPath:
+          path: /dev/bus/usb
+          type: Directory
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: sdr-api-gateway
+  namespace: sdr-platform # kpt-set: ${namespace}
+  labels:
+    app: sdr-api-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: sdr-api-gateway
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: sdr-grpc-server
+  namespace: sdr-platform # kpt-set: ${namespace}
+  labels:
+    app: sdr-grpc-server
+spec:
+  type: ClusterIP
+  selector:
+    app: sdr-grpc-server
+  ports:
+  - name: grpc
+    port: 50051
+    targetPort: 50051
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sdr-api-gateway
+  namespace: sdr-platform # kpt-set: ${namespace}
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sdr-grpc-server
+  namespace: sdr-platform # kpt-set: ${namespace}
