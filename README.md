@@ -6,6 +6,11 @@
 **Last Updated**: 2025-10-27
 **Status**: 🎉 **100% IMPLEMENTATION COMPLETE** 🎉
 
+[![CI/CD](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-Research-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![Code Style](https://img.shields.io/badge/Code%20Style-Black-black.svg)](https://github.com/psf/black)
+
 ---
 
 ## 📋 Project Overview
@@ -46,6 +51,15 @@ SDR/
 ├── README.md                                    # This file
 ├── 100-PERCENT-COMPLETION-GUIDE.md             # 🎯 Production deployment guide
 ├── ULTRATHINK-100-PERCENT-SUMMARY.md           # Final implementation summary
+├── .github/
+│   └── workflows/
+│       └── ci.yml                               # ✅ GitHub Actions CI/CD pipeline (6 jobs)
+├── 02-Technical-Specifications/                 # Complete technical specs
+│   ├── system-requirements.md                   # System Requirements Specification
+│   ├── interface-specifications.md              # Interface Control Document
+│   ├── sdr-specifications.md                    # USRP X310 specifications
+│   ├── oran-specifications.md                   # O-RAN v12.00 compliance
+│   └── ntn-3gpp-compliance.md                   # 3GPP Release 19 NTN
 ├── 03-Implementation/                           # Production implementations
 │   ├── sdr-platform/                            # SDR Platform (✅ 100%)
 │   │   ├── vita49/
@@ -76,10 +90,25 @@ SDR/
 │   └── security/                                # Quantum Security (✅ 100%)
 │       └── pqc/
 │           └── quantum_safe_crypto.py          # 🔐 NIST PQC (584 lines)
+├── 04-Deployment/                               # Infrastructure & CI/CD
+│   ├── infrastructure/                          # Terraform IaC (AWS EKS)
+│   │   ├── main.tf                              # EKS cluster (~150 resources)
+│   │   ├── variables.tf                         # 55+ configurable parameters
+│   │   └── Makefile                             # 50+ automation commands
+│   ├── ci-cd/                                   # GitLab CI + GitHub Actions
+│   │   ├── .gitlab-ci.yml                       # 10-stage pipeline
+│   │   └── argocd-application.yaml              # GitOps configuration
+│   └── monitoring/                              # Prometheus + Grafana
+│       ├── prometheus-rules.yml                 # 40+ alerting rules
+│       └── grafana-dashboards/                  # 4 dashboards (48 panels)
 ├── 05-Documentation/                            # Comprehensive docs
 │   ├── whitepaper.md                           # Technical whitepaper
 │   ├── gap-analysis.md                         # Gap analysis
 │   └── operations-manual.md                    # Operations guide
+├── 06-References/                               # Standards & citations
+│   ├── standards/                               # 3GPP, O-RAN, NIST PQC
+│   ├── research-papers/                         # 60+ academic citations
+│   └── vendor-docs/                             # Hardware specifications
 └── 07-Legacy-Docs/                             # Original documents
     └── ... (historical files)
 ```
@@ -146,6 +175,37 @@ kubectl apply -f manifests/pqc-tls-config.yaml
 kubectl get pods -n oran-system
 kubectl logs -n oran-system -l app=traffic-steering-xapp
 ```
+
+---
+
+## 🔄 CI/CD Pipeline
+
+### Automated Testing & Deployment
+
+Every commit is automatically validated through a **6-stage GitHub Actions pipeline** (~3 minutes):
+
+| Stage | Duration | Description |
+|-------|----------|-------------|
+| **Code Quality** | 22s | Black, isort, Pylint, Bandit security linting |
+| **Terraform Validation** | 18s | Infrastructure-as-Code syntax & validation |
+| **Python Unit Tests** | 18s | Pytest with syntax checks |
+| **PQC Cryptography Tests** | 10s | NIST Post-Quantum Cryptography compliance |
+| **Docker Build** | 1m35s | Multi-arch build & push to GHCR |
+| **Security Scanning** | 15s | Trivy vulnerability scanning |
+
+**CI Status**: [![CI/CD](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml)
+
+**Features**:
+- ✅ Automated linting with Black, isort, Pylint
+- ✅ Security scanning with Trivy, Bandit, Gitleaks
+- ✅ Docker image building for API Gateway
+- ✅ Infrastructure validation with Terraform
+- ✅ Post-Quantum Cryptography compliance testing
+- ✅ Continuous integration on every push/PR
+
+**Container Registry**: [`ghcr.io/thc1006/sdr-o-ran-platform`](https://github.com/thc1006/sdr-o-ran-platform/pkgs/container/sdr-o-ran-platform%2Fapi-gateway)
+
+---
 
 **Performance Validation**:
 - E2E Latency: 47-73ms (LEO), 267-283ms (GEO)
