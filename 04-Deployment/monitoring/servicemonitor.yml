@@ -1,0 +1,552 @@
+# Kubernetes ServiceMonitor CRDs for Prometheus Operator
+# Automatic service discovery and scraping configuration
+# Version: Prometheus Operator 0.70+
+# Last Updated: 2025-10-27
+
+---
+# ServiceMonitor for SDR Platform Services
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sdr-platform-monitor
+  namespace: monitoring
+  labels:
+    app: sdr-platform
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: sdr-platform
+  namespaceSelector:
+    matchNames:
+      - sdr-platform
+      - default
+  endpoints:
+    - port: metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+      metricRelabelings:
+        # Drop high-cardinality metrics
+        - sourceLabels: [__name__]
+          regex: 'go_gc_.*'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'go_memstats_.*'
+          action: drop
+
+---
+# ServiceMonitor for USRP Hardware Exporter
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: usrp-exporter-monitor
+  namespace: monitoring
+  labels:
+    app: usrp-exporter
+    component: hardware
+spec:
+  selector:
+    matchLabels:
+      app: usrp-exporter
+  namespaceSelector:
+    matchNames:
+      - sdr-platform
+  endpoints:
+    - port: metrics
+      interval: 10s
+      scrapeTimeout: 8s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_device_id]
+          targetLabel: device_id
+        - sourceLabels: [__meta_kubernetes_pod_label_device_type]
+          targetLabel: device_type
+      # Example metrics exported by USRP exporter:
+      # - sdr_throughput_bytes_total
+      # - sdr_iq_samples_total
+      # - usrp_packet_loss_total
+      # - usrp_overflow_errors_total
+      # - usrp_underrun_errors_total
+      # - usrp_temperature_celsius
+      # - sdr_signal_strength_dbm
+      # - sdr_snr_db
+      # - sdr_carrier_frequency_hz
+
+---
+# ServiceMonitor for O-RAN RIC Services
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: oran-ric-monitor
+  namespace: monitoring
+  labels:
+    app: oran-ric
+    component: control-plane
+spec:
+  selector:
+    matchLabels:
+      app: oran-ric
+  namespaceSelector:
+    matchNames:
+      - oran-platform
+      - sdr-platform
+  endpoints:
+    - port: metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_service_label_component]
+          targetLabel: component
+        - sourceLabels: [__meta_kubernetes_pod_label_xapp_name]
+          targetLabel: xapp_name
+      # Example metrics:
+      # - oran_e2_control_latency_seconds
+      # - oran_kpm_metrics_received_total
+      # - xapp_decision_latency_seconds
+      # - xapp_decisions_total
+      # - oran_ric_request_queue_length
+      # - oran_connected_ues_total
+      # - oran_prb_utilization_percent
+
+---
+# ServiceMonitor for O-RAN E2 Interface
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: oran-e2-interface-monitor
+  namespace: monitoring
+  labels:
+    app: oran-e2-interface
+    component: e2
+spec:
+  selector:
+    matchLabels:
+      app: oran-e2-interface
+  namespaceSelector:
+    matchNames:
+      - oran-platform
+  endpoints:
+    - port: metrics
+      interval: 10s
+      scrapeTimeout: 8s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_interface_type]
+          targetLabel: interface_type
+      # Example metrics:
+      # - oran_e2_messages_total
+      # - oran_e2_messages_bytes_total
+      # - oran_e2_control_latency_seconds
+
+---
+# ServiceMonitor for xApps
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: xapp-monitor
+  namespace: monitoring
+  labels:
+    app: xapp
+    component: oran-ric
+spec:
+  selector:
+    matchLabels:
+      component: xapp
+  namespaceSelector:
+    matchNames:
+      - oran-platform
+  endpoints:
+    - port: metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_xapp_name]
+          targetLabel: xapp_name
+        - sourceLabels: [__meta_kubernetes_pod_label_xapp_version]
+          targetLabel: version
+      metricRelabelings:
+        # Add xapp-specific labels
+        - sourceLabels: [__name__]
+          regex: 'xapp_.*'
+          action: keep
+      # Example metrics:
+      # - xapp_decision_latency_seconds
+      # - xapp_decisions_total
+      # - xapp_errors_total
+
+---
+# ServiceMonitor for AI/ML Training Services
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aiml-training-monitor
+  namespace: monitoring
+  labels:
+    app: aiml-training
+    component: training
+spec:
+  selector:
+    matchLabels:
+      app: aiml-training
+  namespaceSelector:
+    matchNames:
+      - aiml-platform
+      - sdr-platform
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 15s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_model_name]
+          targetLabel: model
+        - sourceLabels: [__meta_kubernetes_pod_label_training_job_id]
+          targetLabel: job_id
+      # Example metrics:
+      # - drl_training_loss
+      # - drl_validation_loss
+      # - drl_training_reward
+      # - drl_model_accuracy
+      # - drl_training_episodes_total
+      # - drl_training_dataset_size
+      # - drl_training_steps_per_second
+
+---
+# ServiceMonitor for AI/ML Inference Services
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aiml-inference-monitor
+  namespace: monitoring
+  labels:
+    app: aiml-inference
+    component: inference
+spec:
+  selector:
+    matchLabels:
+      app: aiml-inference
+  namespaceSelector:
+    matchNames:
+      - aiml-platform
+      - sdr-platform
+  endpoints:
+    - port: metrics
+      interval: 10s
+      scrapeTimeout: 8s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_model_name]
+          targetLabel: model
+        - sourceLabels: [__meta_kubernetes_pod_label_model_version]
+          targetLabel: version
+      # Example metrics:
+      # - drl_inference_latency_seconds
+      # - drl_inference_requests_total
+      # - drl_inference_errors_total
+      # - drl_model_last_update_timestamp_seconds
+
+---
+# ServiceMonitor for NVIDIA GPU Metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nvidia-gpu-monitor
+  namespace: monitoring
+  labels:
+    app: nvidia-gpu-exporter
+    component: hardware
+spec:
+  selector:
+    matchLabels:
+      app: nvidia-dcgm-exporter
+  namespaceSelector:
+    matchNames:
+      - gpu-operator
+      - kube-system
+  endpoints:
+    - port: metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [gpu]
+          targetLabel: gpu_id
+      # Example metrics from DCGM exporter:
+      # - nvidia_gpu_duty_cycle
+      # - nvidia_gpu_memory_used_bytes
+      # - nvidia_gpu_memory_total_bytes
+      # - nvidia_gpu_temperature
+      # - nvidia_gpu_power_usage
+
+---
+# ServiceMonitor for PQC Security Services
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pqc-security-monitor
+  namespace: monitoring
+  labels:
+    app: pqc-security
+    component: security
+spec:
+  selector:
+    matchLabels:
+      app: pqc-crypto
+  namespaceSelector:
+    matchNames:
+      - security-platform
+      - sdr-platform
+  endpoints:
+    - port: metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: https
+      tlsConfig:
+        insecureSkipVerify: false
+        ca:
+          secret:
+            name: pqc-ca-cert
+            key: ca.crt
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_algorithm]
+          targetLabel: algorithm
+      # Example metrics:
+      # - pqc_operations_total{algorithm, operation}
+      # - pqc_operation_duration_seconds{algorithm, operation}
+      # - pqc_handshake_attempts_total{algorithm}
+      # - pqc_handshake_failures_total{algorithm}
+      # - pqc_key_rotation_last_timestamp_seconds{algorithm}
+      # - pqc_key_rotation_total{algorithm}
+      # - pqc_certificate_expiry_timestamp_seconds{algorithm, cert_name}
+
+---
+# ServiceMonitor for TLS/Security Metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tls-security-monitor
+  namespace: monitoring
+  labels:
+    app: tls-security
+    component: security
+spec:
+  selector:
+    matchLabels:
+      security: tls
+  namespaceSelector:
+    any: true
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 15s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: service
+      # Example metrics:
+      # - tls_handshake_duration_seconds
+      # - tls_active_connections
+      # - tls_encrypted_bytes_total
+      # - tls_connection_errors_total
+
+---
+# ServiceMonitor for Kubernetes System Metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-state-metrics
+  namespace: monitoring
+  labels:
+    app: kube-state-metrics
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  namespaceSelector:
+    matchNames:
+      - kube-system
+      - monitoring
+  endpoints:
+    - port: http-metrics
+      interval: 30s
+      scrapeTimeout: 20s
+      honorLabels: true
+
+---
+# ServiceMonitor for Node Exporter
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    app: node-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: node-exporter
+  namespaceSelector:
+    matchNames:
+      - kube-system
+      - monitoring
+  endpoints:
+    - port: metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+
+---
+# ServiceMonitor for Prometheus Operator itself
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: prometheus-operator
+  namespace: monitoring
+  labels:
+    app: prometheus-operator
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-operator
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  endpoints:
+    - port: http
+      interval: 30s
+
+---
+# ServiceMonitor for E2E Latency Monitoring
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: e2e-latency-monitor
+  namespace: monitoring
+  labels:
+    app: latency-monitor
+    component: network
+spec:
+  selector:
+    matchLabels:
+      app: latency-prober
+  namespaceSelector:
+    matchNames:
+      - sdr-platform
+  endpoints:
+    - port: metrics
+      interval: 10s
+      scrapeTimeout: 8s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_orbit]
+          targetLabel: orbit
+        - sourceLabels: [__meta_kubernetes_pod_label_satellite_id]
+          targetLabel: satellite
+      # Example metrics:
+      # - sdr_e2e_latency_seconds{orbit}
+
+---
+# PodMonitor for pods without services
+# Alternative to ServiceMonitor for direct pod scraping
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: sdr-platform-pods
+  namespace: monitoring
+  labels:
+    app: sdr-platform
+spec:
+  selector:
+    matchLabels:
+      monitor: "true"
+  namespaceSelector:
+    matchNames:
+      - sdr-platform
+      - oran-platform
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      path: /metrics
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+
+---
+# PrometheusRule for recording rules
+# Pre-compute frequently used queries
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sdr-recording-rules
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: sdr_latency_rules
+      interval: 30s
+      rules:
+        - record: sdr:e2e_latency:p95
+          expr: histogram_quantile(0.95, rate(sdr_e2e_latency_seconds_bucket[5m]))
+          labels:
+            quantile: "0.95"
+
+        - record: sdr:e2e_latency:p99
+          expr: histogram_quantile(0.99, rate(sdr_e2e_latency_seconds_bucket[5m]))
+          labels:
+            quantile: "0.99"
+
+    - name: sdr_throughput_rules
+      interval: 30s
+      rules:
+        - record: sdr:throughput:mbps
+          expr: rate(sdr_throughput_bytes_total[5m]) * 8 / 1000000
+
+        - record: sdr:throughput:avg_1h
+          expr: avg_over_time(sdr:throughput:mbps[1h])
+
+    - name: drl_inference_rules
+      interval: 30s
+      rules:
+        - record: drl:inference_latency:p95
+          expr: histogram_quantile(0.95, rate(drl_inference_latency_seconds_bucket[5m]))
+
+        - record: drl:inference_rate:qps
+          expr: rate(drl_inference_requests_total[5m])
+
+    - name: pqc_security_rules
+      interval: 30s
+      rules:
+        - record: pqc:handshake_success_rate
+          expr: 1 - (rate(pqc_handshake_failures_total[5m]) / rate(pqc_handshake_attempts_total[5m]))
+
+        - record: pqc:operation_rate:ops
+          expr: rate(pqc_operations_total[5m])

@@ -1,0 +1,384 @@
+# Grafana Loki Configuration
+# Version: 2.9.0+
+# Log Aggregation for SDR O-RAN Platform
+# Last Updated: 2025-10-27
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+# Query configuration
+query_range:
+  align_queries_with_step: true
+  max_retries: 5
+  cache_results: true
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+
+# Schema configuration
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+# Storage configuration
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/boltdb-shipper-active
+    cache_location: /loki/boltdb-shipper-cache
+    cache_ttl: 24h
+    shared_store: filesystem
+  filesystem:
+    directory: /loki/chunks
+
+# Compactor configuration (for data retention)
+compactor:
+  working_directory: /loki/compactor
+  shared_store: filesystem
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+
+# Limits configuration
+limits_config:
+  # Ingestion limits
+  ingestion_rate_mb: 50
+  ingestion_burst_size_mb: 100
+  max_streams_per_user: 10000
+  max_global_streams_per_user: 100000
+
+  # Query limits
+  max_query_length: 721h  # 30 days
+  max_query_parallelism: 32
+  max_query_series: 5000
+  max_entries_limit_per_query: 10000
+
+  # Label limits
+  max_label_name_length: 1024
+  max_label_value_length: 2048
+  max_label_names_per_series: 30
+
+  # Retention (90 days)
+  retention_period: 2160h
+
+  # Rate limiting
+  per_stream_rate_limit: 5MB
+  per_stream_rate_limit_burst: 10MB
+
+  # Cardinality limits
+  max_chunks_per_query: 2000000
+  cardinality_limit: 100000
+
+# Table manager configuration
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 2160h  # 90 days
+
+# Ruler configuration (for alerting)
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules-temp
+  alertmanager_url: http://prometheus-alertmanager:9093
+  ring:
+    kvstore:
+      store: inmemory
+  enable_api: true
+  enable_alertmanager_v2: true
+
+# Frontend configuration
+frontend:
+  compress_responses: true
+  max_outstanding_per_tenant: 2048
+  log_queries_longer_than: 10s
+
+# Query scheduler configuration
+query_scheduler:
+  max_outstanding_requests_per_tenant: 2048
+
+# Analytics configuration
+analytics:
+  reporting_enabled: false
+
+---
+# Loki Promtail Configuration (Log Shipper)
+# Deployed as DaemonSet on Kubernetes
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: monitoring
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+      log_level: info
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+        batchwait: 1s
+        batchsize: 1048576  # 1MB
+        timeout: 10s
+        backoff_config:
+          min_period: 500ms
+          max_period: 5m
+          max_retries: 10
+
+    scrape_configs:
+      # =============================================
+      # Kubernetes Pod Logs
+      # =============================================
+      - job_name: kubernetes-pods
+        pipeline_stages:
+          - docker: {}
+          - multiline:
+              firstline: '^\d{4}-\d{2}-\d{2}'
+              max_wait_time: 3s
+          - regex:
+              expression: '^(?P<timestamp>\S+) (?P<level>\S+) (?P<message>.*)$'
+          - labels:
+              level:
+              timestamp:
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          # Only scrape running pods
+          - source_labels: [__meta_kubernetes_pod_phase]
+            action: keep
+            regex: Running
+
+          # Add namespace label
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+
+          # Add pod name label
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+          # Add container name label
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+
+          # Add node name label
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+
+          # Add app label
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: app
+
+          # Add component label
+          - source_labels: [__meta_kubernetes_pod_label_component]
+            target_label: component
+
+          # Set log path
+          - source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
+            target_label: __path__
+            separator: /
+            replacement: /var/log/pods/*$1/*.log
+
+      # =============================================
+      # SDR Platform Specific Logs
+      # =============================================
+      - job_name: sdr-platform
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: sdr-platform
+              component: usrp
+              __path__: /var/log/sdr/*.log
+        pipeline_stages:
+          - regex:
+              expression: '^(?P<timestamp>\S+) \[(?P<level>\S+)\] (?P<message>.*)$'
+          - labels:
+              level:
+          - timestamp:
+              source: timestamp
+              format: RFC3339
+
+      # =============================================
+      # O-RAN RIC Logs
+      # =============================================
+      - job_name: oran-ric
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: oran-ric
+              component: e2-interface
+              __path__: /var/log/oran/*.log
+        pipeline_stages:
+          - json:
+              expressions:
+                timestamp: timestamp
+                level: level
+                message: message
+                xapp: xapp_name
+          - labels:
+              level:
+              xapp:
+          - timestamp:
+              source: timestamp
+              format: RFC3339Nano
+
+      # =============================================
+      # AI/ML Training Logs
+      # =============================================
+      - job_name: aiml-training
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: aiml
+              component: training
+              __path__: /var/log/aiml/training/*.log
+        pipeline_stages:
+          - regex:
+              expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<level>\S+) - (?P<message>.*)$'
+          - labels:
+              level:
+          - timestamp:
+              source: timestamp
+              format: '2006-01-02 15:04:05,000'
+
+      # =============================================
+      # Security Audit Logs
+      # =============================================
+      - job_name: security-audit
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: security
+              component: audit
+              __path__: /var/log/security/audit/*.log
+        pipeline_stages:
+          - json:
+              expressions:
+                timestamp: timestamp
+                event_type: event_type
+                user: user
+                action: action
+                result: result
+          - labels:
+              event_type:
+              result:
+          - timestamp:
+              source: timestamp
+              format: RFC3339
+
+---
+# Example Log Queries for Common Use Cases
+
+# Query Examples:
+# ----------------
+
+# 1. All logs from SDR platform in last 1 hour
+# {job="sdr-platform"} |~ ".*"
+
+# 2. Error logs from O-RAN RIC
+# {job="oran-ric"} |= "level=error"
+
+# 3. AI/ML training logs with high loss
+# {job="aiml", component="training"} |~ "loss.*[5-9][0-9]"
+
+# 4. USRP packet loss events
+# {component="usrp"} |= "packet loss" |= "rate > 0.1%"
+
+# 5. PQC handshake failures
+# {component="security"} |~ "handshake.*failed" |= "ml-kem"
+
+# 6. E2 interface errors
+# {component="e2-interface"} |= "error" or "failed"
+
+# 7. xApp decision logs
+# {component="oran-ric"} |= "xapp" |= "decision"
+
+# 8. Container restart events
+# {namespace="sdr-platform"} |= "restarting" or "crashloopbackoff"
+
+# 9. High latency warnings
+# {job=~"sdr-platform|oran-ric"} |~ "latency.*[1-9][0-9]{2}ms"
+
+# 10. Security audit events - failed authentication
+# {job="security"} |= "authentication" |= "failed"
+
+# 11. GPU out of memory errors
+# {component="aiml"} |= "CUDA" |= "out of memory"
+
+# 12. Certificate expiry warnings
+# {component="security"} |~ "certificate.*expir"
+
+# 13. Rate of errors per minute
+# sum(rate({job="sdr-platform"} |= "error" [1m]))
+
+# 14. Count of unique pods with errors in last hour
+# count(count_over_time({namespace="sdr-platform"} |= "error" [1h]) > 0) by (pod)
+
+# 15. Trace specific transaction across services
+# {namespace="sdr-platform"} |= "trace_id=abc123"
+
+# 16. Logs from specific pod
+# {pod="sdr-usrp-driver-xyz"}
+
+# 17. Throughput degradation events
+# {component="usrp"} |~ "throughput.*below.*[0-5][0-9].*Mbps"
+
+# 18. DRL inference latency warnings
+# {component="aiml"} |= "inference" |~ "latency.*1[5-9]ms"
+
+# 19. All logs except debug level
+# {job="sdr-platform"} != "level=debug"
+
+# 20. Pattern matching for IQ sample rate anomalies
+# {component="usrp"} |~ "sample.*rate.*(?:2[89]|3[12])\\.\\d+.*MHz"
+
+---
+# LogQL Metrics Queries
+# These can be used in Grafana dashboards
+
+# Error rate per job
+# sum(rate({job=~".+"} |= "error" [5m])) by (job)
+
+# Log volume by namespace
+# sum(rate({namespace=~".+"} [1m])) by (namespace)
+
+# P95 latency from logs
+# quantile_over_time(0.95, {component="sdr-platform"}
+#   | regexp "latency=(?P<latency>\\d+)ms"
+#   | unwrap latency [5m]) by (component)
+
+# Top 10 error messages
+# topk(10, sum(count_over_time({job="sdr-platform"} |= "error" [1h])) by (message))

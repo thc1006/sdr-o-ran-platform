@@ -1,0 +1,667 @@
+# ============================================================================
+# SDR-O-RAN Platform - GitLab CI/CD Pipeline
+# ============================================================================
+# Version: 2.0.0
+# Date: 2025-10-27
+# Author: thc1006@ieee.org
+#
+# Pipeline Architecture:
+# - Build: Multi-stage Docker builds with BuildKit
+# - Test: Pytest for Python, integration tests for gRPC
+# - Security: Trivy (containers), Bandit (Python), SAST/DAST
+# - Deploy: Helm charts to Kubernetes (staging → production)
+# - Observability: OpenTelemetry tracing, Prometheus metrics
+#
+# GitOps Integration: ArgoCD for continuous deployment
+# ============================================================================
+
+workflow:
+  rules:
+    # Run on merge requests
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    # Run on main/master branches
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"'
+    # Run on tags
+    - if: '$CI_COMMIT_TAG'
+    # Manual trigger
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+
+# ============================================================================
+# Global Variables
+# ============================================================================
+variables:
+  # Docker Configuration
+  DOCKER_DRIVER: overlay2
+  DOCKER_BUILDKIT: 1
+  DOCKER_CLI_EXPERIMENTAL: enabled
+
+  # Container Registry
+  CI_REGISTRY: registry.gitlab.com
+  CI_REGISTRY_IMAGE: $CI_REGISTRY/$CI_PROJECT_PATH
+
+  # Kubernetes Configuration
+  KUBE_NAMESPACE_STAGING: sdr-staging
+  KUBE_NAMESPACE_PRODUCTION: sdr-production
+  HELM_VERSION: "3.14.0"
+
+  # Python Configuration
+  PYTHON_VERSION: "3.11"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+  # Security Scanning
+  TRIVY_VERSION: "0.50.0"
+  TRIVY_SEVERITY: "CRITICAL,HIGH"
+  BANDIT_CONFIG: ".bandit.yml"
+
+  # PQC/Cryptography
+  PQC_LIBRARY: "pqcrypto"
+  OSSL_VERSION: "3.2.0"  # OpenSSL with PQC support
+
+  # Service Names
+  SERVICES: "api-gateway sdr-grpc-server vita49-bridge drl-trainer pqc-service"
+
+# ============================================================================
+# Pipeline Stages
+# ============================================================================
+stages:
+  - validate          # Lint, format checks
+  - build            # Docker image builds
+  - test             # Unit tests, integration tests
+  - security-scan    # Container scanning, SAST
+  - package          # Helm chart packaging
+  - deploy-staging   # Deploy to staging
+  - integration-test # E2E tests on staging
+  - deploy-prod      # Production deployment
+  - verify           # Post-deployment validation
+  - rollback         # Manual rollback stage
+
+# ============================================================================
+# Templates
+# ============================================================================
+
+.docker_build_template: &docker_build_definition
+  image: docker:24-git
+  services:
+    - docker:24-dind
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - apk add --no-cache git
+  after_script:
+    - docker logout $CI_REGISTRY
+
+.kubectl_template: &kubectl_definition
+  image: bitnami/kubectl:1.29
+  before_script:
+    - kubectl config set-cluster k8s --server="$KUBE_URL"
+    - kubectl config set-credentials gitlab --token="$KUBE_TOKEN"
+    - kubectl config set-context default --cluster=k8s --user=gitlab
+    - kubectl config use-context default
+
+.helm_template: &helm_definition
+  image: alpine/helm:$HELM_VERSION
+  before_script:
+    - helm version
+    - helm repo add stable https://charts.helm.sh/stable
+    - helm repo update
+
+# ============================================================================
+# Stage 1: Validate
+# ============================================================================
+
+lint:python:
+  stage: validate
+  image: python:$PYTHON_VERSION-slim
+  script:
+    - pip install --quiet pylint black isort mypy
+    - echo "Running Python linters..."
+    - find . -name "*.py" -not -path "*/venv/*" -not -path "*/.cache/*" | xargs pylint --rcfile=.pylintrc || true
+    - black --check --diff .
+    - isort --check-only --diff .
+    - mypy . --ignore-missing-imports || true
+  allow_failure: true
+  cache:
+    key: python-lint-cache
+    paths:
+      - .cache/pip
+  rules:
+    - changes:
+        - "**/*.py"
+
+lint:docker:
+  stage: validate
+  image: hadolint/hadolint:latest-debian
+  script:
+    - echo "Linting Dockerfiles..."
+    - find . -name "Dockerfile*" | xargs -I {} hadolint {}
+  allow_failure: true
+  rules:
+    - changes:
+        - "**/Dockerfile*"
+
+validate:helm:
+  stage: validate
+  <<: *helm_definition
+  script:
+    - echo "Validating Helm charts..."
+    - helm lint ./04-Deployment/kubernetes/helm/sdr-platform
+    - helm template sdr-platform ./04-Deployment/kubernetes/helm/sdr-platform --debug
+  rules:
+    - changes:
+        - "04-Deployment/kubernetes/helm/**/*"
+
+# ============================================================================
+# Stage 2: Build Docker Images
+# ============================================================================
+
+.build_service:
+  <<: *docker_build_definition
+  stage: build
+  script:
+    - |
+      SERVICE_DIR="03-Implementation/${SERVICE_PATH}"
+      IMAGE_TAG="${CI_REGISTRY_IMAGE}/${SERVICE_NAME}:${CI_COMMIT_SHORT_SHA}"
+      IMAGE_TAG_LATEST="${CI_REGISTRY_IMAGE}/${SERVICE_NAME}:latest"
+
+      echo "Building ${SERVICE_NAME}..."
+      echo "Service directory: ${SERVICE_DIR}"
+
+      if [ ! -f "${SERVICE_DIR}/Dockerfile" ]; then
+        echo "ERROR: Dockerfile not found at ${SERVICE_DIR}/Dockerfile"
+        exit 1
+      fi
+
+      # Multi-stage build with BuildKit
+      docker build \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --cache-from ${IMAGE_TAG_LATEST} \
+        --tag ${IMAGE_TAG} \
+        --tag ${IMAGE_TAG_LATEST} \
+        --file ${SERVICE_DIR}/Dockerfile \
+        --label "git.commit=${CI_COMMIT_SHA}" \
+        --label "git.branch=${CI_COMMIT_REF_NAME}" \
+        --label "pipeline.id=${CI_PIPELINE_ID}" \
+        ${SERVICE_DIR}
+
+      # Push images
+      docker push ${IMAGE_TAG}
+      docker push ${IMAGE_TAG_LATEST}
+
+      # Export image name for downstream jobs
+      echo "IMAGE_TAG=${IMAGE_TAG}" >> build.env
+  artifacts:
+    reports:
+      dotenv: build.env
+    expire_in: 1 day
+
+build:api-gateway:
+  extends: .build_service
+  variables:
+    SERVICE_NAME: api-gateway
+    SERVICE_PATH: sdr-platform/api-gateway
+  rules:
+    - changes:
+        - "03-Implementation/sdr-platform/api-gateway/**/*"
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+build:sdr-grpc-server:
+  extends: .build_service
+  variables:
+    SERVICE_NAME: sdr-grpc-server
+    SERVICE_PATH: integration/sdr-oran-connector
+  rules:
+    - changes:
+        - "03-Implementation/integration/sdr-oran-connector/**/*"
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+build:vita49-bridge:
+  extends: .build_service
+  variables:
+    SERVICE_NAME: vita49-bridge
+    SERVICE_PATH: integration/vita49-bridge
+  rules:
+    - changes:
+        - "03-Implementation/integration/vita49-bridge/**/*"
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+build:drl-trainer:
+  extends: .build_service
+  variables:
+    SERVICE_NAME: drl-trainer
+    SERVICE_PATH: ai-ml-pipeline/training
+  rules:
+    - changes:
+        - "03-Implementation/ai-ml-pipeline/**/*"
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+build:pqc-service:
+  extends: .build_service
+  variables:
+    SERVICE_NAME: pqc-service
+    SERVICE_PATH: security/pqc
+  rules:
+    - changes:
+        - "03-Implementation/security/pqc/**/*"
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ============================================================================
+# Stage 3: Test
+# ============================================================================
+
+test:unit:python:
+  stage: test
+  image: python:$PYTHON_VERSION-slim
+  before_script:
+    - pip install --quiet pytest pytest-cov pytest-asyncio pytest-mock
+    - pip install -r 03-Implementation/sdr-platform/api-gateway/requirements.txt
+  script:
+    - echo "Running Python unit tests..."
+    - pytest 03-Implementation/ \
+        --cov=03-Implementation \
+        --cov-report=xml \
+        --cov-report=html \
+        --cov-report=term \
+        --junitxml=report.xml \
+        -v
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - htmlcov/
+    expire_in: 30 days
+  cache:
+    key: pytest-cache
+    paths:
+      - .cache/pip
+      - .pytest_cache
+
+test:pqc-integration:
+  stage: test
+  image: python:$PYTHON_VERSION-slim
+  before_script:
+    - pip install --quiet pytest pqcrypto cryptography
+  script:
+    - echo "Testing PQC cryptography integration..."
+    - python 03-Implementation/security/pqc/quantum_safe_crypto.py
+    - pytest 03-Implementation/security/pqc/ -v
+  allow_failure: true
+  rules:
+    - changes:
+        - "03-Implementation/security/pqc/**/*"
+
+test:grpc-connectivity:
+  stage: test
+  image: python:$PYTHON_VERSION-slim
+  services:
+    - name: ${CI_REGISTRY_IMAGE}/sdr-grpc-server:latest
+      alias: sdr-grpc
+  before_script:
+    - pip install --quiet grpcio grpcio-tools protobuf
+  script:
+    - echo "Testing gRPC connectivity..."
+    - python 03-Implementation/integration/sdr-oran-connector/test_grpc_connection.py
+  allow_failure: true
+
+test:drl-model:
+  stage: test
+  image: python:$PYTHON_VERSION-slim
+  before_script:
+    - pip install --quiet tensorflow torch numpy pytest
+  script:
+    - echo "Validating DRL models..."
+    - python -c "import tensorflow as tf; print(f'TensorFlow: {tf.__version__}')"
+    - pytest 03-Implementation/ai-ml-pipeline/training/ -v --ignore=data/
+  allow_failure: true
+  rules:
+    - changes:
+        - "03-Implementation/ai-ml-pipeline/**/*"
+
+# ============================================================================
+# Stage 4: Security Scanning
+# ============================================================================
+
+security:trivy:
+  stage: security-scan
+  image: aquasec/trivy:$TRIVY_VERSION
+  script:
+    - |
+      echo "Scanning Docker images with Trivy..."
+      for SERVICE in $SERVICES; do
+        IMAGE="${CI_REGISTRY_IMAGE}/${SERVICE}:${CI_COMMIT_SHORT_SHA}"
+        echo "Scanning ${IMAGE}..."
+
+        trivy image \
+          --severity $TRIVY_SEVERITY \
+          --exit-code 0 \
+          --format json \
+          --output trivy-${SERVICE}.json \
+          ${IMAGE}
+
+        trivy image \
+          --severity $TRIVY_SEVERITY \
+          --exit-code 1 \
+          ${IMAGE}
+      done
+  artifacts:
+    reports:
+      container_scanning: trivy-*.json
+    expire_in: 30 days
+  allow_failure: true
+
+security:bandit:
+  stage: security-scan
+  image: python:$PYTHON_VERSION-slim
+  before_script:
+    - pip install --quiet bandit[toml]
+  script:
+    - echo "Running Bandit Python security scanner..."
+    - bandit -r 03-Implementation/ \
+        -f json \
+        -o bandit-report.json \
+        -ll \
+        --exclude "*/tests/*,*/venv/*"
+    - bandit -r 03-Implementation/ -ll
+  artifacts:
+    reports:
+      sast: bandit-report.json
+    expire_in: 30 days
+  allow_failure: true
+
+security:gitleaks:
+  stage: security-scan
+  image: zricethezav/gitleaks:latest
+  script:
+    - echo "Scanning for secrets in git history..."
+    - gitleaks detect --source . --verbose --report-format json --report-path gitleaks-report.json
+  artifacts:
+    paths:
+      - gitleaks-report.json
+    expire_in: 30 days
+  allow_failure: true
+
+security:dependency-check:
+  stage: security-scan
+  image: python:$PYTHON_VERSION-slim
+  before_script:
+    - pip install --quiet safety pip-audit
+  script:
+    - echo "Checking Python dependencies for vulnerabilities..."
+    - safety check --json --output safety-report.json || true
+    - pip-audit --format json --output pip-audit-report.json || true
+  artifacts:
+    paths:
+      - safety-report.json
+      - pip-audit-report.json
+    expire_in: 30 days
+  allow_failure: true
+
+# ============================================================================
+# Stage 5: Package Helm Charts
+# ============================================================================
+
+package:helm:
+  stage: package
+  <<: *helm_definition
+  script:
+    - |
+      echo "Packaging Helm charts..."
+      CHART_DIR="04-Deployment/kubernetes/helm/sdr-platform"
+
+      # Update chart version
+      CHART_VERSION="${CI_COMMIT_TAG:-0.1.0-${CI_COMMIT_SHORT_SHA}}"
+      sed -i "s/^version:.*/version: ${CHART_VERSION}/" ${CHART_DIR}/Chart.yaml
+
+      # Update image tags in values.yaml
+      sed -i "s/tag: latest/tag: ${CI_COMMIT_SHORT_SHA}/" ${CHART_DIR}/values.yaml
+
+      # Package chart
+      helm package ${CHART_DIR} --destination ./charts/
+
+      # Push to Helm registry (OCI)
+      helm push ./charts/sdr-platform-${CHART_VERSION}.tgz oci://${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/helm-charts
+  artifacts:
+    paths:
+      - charts/
+    expire_in: 90 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG'
+
+# ============================================================================
+# Stage 6: Deploy to Staging
+# ============================================================================
+
+deploy:staging:
+  stage: deploy-staging
+  <<: *kubectl_definition
+  environment:
+    name: staging
+    url: https://sdr-staging.example.com
+    on_stop: destroy:staging
+  script:
+    - |
+      echo "Deploying to Kubernetes staging namespace..."
+
+      # Create namespace if not exists
+      kubectl create namespace $KUBE_NAMESPACE_STAGING --dry-run=client -o yaml | kubectl apply -f -
+
+      # Apply ConfigMaps and Secrets
+      kubectl apply -f 04-Deployment/kubernetes/configmaps/ -n $KUBE_NAMESPACE_STAGING
+      kubectl create secret docker-registry gitlab-registry \
+        --docker-server=$CI_REGISTRY \
+        --docker-username=$CI_REGISTRY_USER \
+        --docker-password=$CI_REGISTRY_PASSWORD \
+        -n $KUBE_NAMESPACE_STAGING \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+      # Deploy using kubectl (or use Helm)
+      for SERVICE in $SERVICES; do
+        IMAGE="${CI_REGISTRY_IMAGE}/${SERVICE}:${CI_COMMIT_SHORT_SHA}"
+        kubectl set image deployment/${SERVICE} ${SERVICE}=${IMAGE} -n $KUBE_NAMESPACE_STAGING || true
+      done
+
+      # Wait for rollout
+      kubectl rollout status deployment -n $KUBE_NAMESPACE_STAGING --timeout=5m
+
+      echo "Staging deployment complete!"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  needs:
+    - job: build:api-gateway
+      optional: true
+    - job: build:sdr-grpc-server
+      optional: true
+    - job: security:trivy
+      optional: true
+
+deploy:staging:helm:
+  stage: deploy-staging
+  <<: *helm_definition
+  environment:
+    name: staging-helm
+    url: https://sdr-staging.example.com
+  script:
+    - |
+      echo "Deploying with Helm to staging..."
+
+      kubectl create namespace $KUBE_NAMESPACE_STAGING --dry-run=client -o yaml | kubectl apply -f -
+
+      helm upgrade --install sdr-platform \
+        ./04-Deployment/kubernetes/helm/sdr-platform \
+        --namespace $KUBE_NAMESPACE_STAGING \
+        --create-namespace \
+        --set global.imageTag=${CI_COMMIT_SHORT_SHA} \
+        --set global.environment=staging \
+        --set global.registry=${CI_REGISTRY_IMAGE} \
+        --values ./04-Deployment/kubernetes/helm/sdr-platform/values-staging.yaml \
+        --wait \
+        --timeout 10m
+
+      echo "Helm deployment to staging complete!"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  needs:
+    - job: package:helm
+      optional: true
+
+destroy:staging:
+  stage: deploy-staging
+  <<: *kubectl_definition
+  environment:
+    name: staging
+    action: stop
+  script:
+    - kubectl delete namespace $KUBE_NAMESPACE_STAGING --ignore-not-found
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ============================================================================
+# Stage 7: Integration Tests (Staging)
+# ============================================================================
+
+integration:e2e:
+  stage: integration-test
+  image: python:$PYTHON_VERSION-slim
+  before_script:
+    - pip install --quiet pytest requests grpcio
+  script:
+    - echo "Running E2E tests against staging..."
+    - export SDR_API_URL="https://sdr-staging.example.com"
+    - pytest 03-Implementation/integration/tests/ -v --tb=short
+  allow_failure: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  needs:
+    - deploy:staging
+
+integration:performance:
+  stage: integration-test
+  image: grafana/k6:latest
+  script:
+    - echo "Running performance tests..."
+    - k6 run 04-Deployment/ci-cd/k6-performance-test.js
+  allow_failure: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  needs:
+    - deploy:staging
+
+# ============================================================================
+# Stage 8: Deploy to Production
+# ============================================================================
+
+deploy:production:
+  stage: deploy-prod
+  <<: *helm_definition
+  environment:
+    name: production
+    url: https://sdr.example.com
+  script:
+    - |
+      echo "Deploying to PRODUCTION with blue-green strategy..."
+
+      kubectl create namespace $KUBE_NAMESPACE_PRODUCTION --dry-run=client -o yaml | kubectl apply -f -
+
+      # Blue-Green Deployment with Helm
+      helm upgrade --install sdr-platform-green \
+        ./04-Deployment/kubernetes/helm/sdr-platform \
+        --namespace $KUBE_NAMESPACE_PRODUCTION \
+        --create-namespace \
+        --set global.imageTag=${CI_COMMIT_SHORT_SHA} \
+        --set global.environment=production \
+        --set global.registry=${CI_REGISTRY_IMAGE} \
+        --set global.deploymentColor=green \
+        --values ./04-Deployment/kubernetes/helm/sdr-platform/values-production.yaml \
+        --wait \
+        --timeout 15m
+
+      echo "Green deployment ready. Verify before switching traffic."
+      echo "Run 'manual:switch-traffic' job to promote green to blue."
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  needs:
+    - integration:e2e
+
+manual:switch-traffic:
+  stage: deploy-prod
+  <<: *kubectl_definition
+  environment:
+    name: production
+  script:
+    - |
+      echo "Switching traffic from blue to green..."
+
+      # Update service selector to point to green deployment
+      kubectl patch service sdr-api-gateway \
+        -n $KUBE_NAMESPACE_PRODUCTION \
+        -p '{"spec":{"selector":{"app":"sdr-api-gateway","version":"green"}}}'
+
+      echo "Traffic switched to green deployment!"
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  needs:
+    - deploy:production
+
+# ============================================================================
+# Stage 9: Post-Deployment Verification
+# ============================================================================
+
+verify:production:
+  stage: verify
+  image: curlimages/curl:latest
+  script:
+    - echo "Verifying production deployment..."
+    - curl -f https://sdr.example.com/healthz || exit 1
+    - curl -f https://sdr.example.com/metrics || exit 1
+    - echo "Production health checks passed!"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  needs:
+    - manual:switch-traffic
+
+# ============================================================================
+# Stage 10: Rollback
+# ============================================================================
+
+rollback:production:
+  stage: rollback
+  <<: *helm_definition
+  environment:
+    name: production
+  script:
+    - |
+      echo "Rolling back production deployment..."
+
+      # Rollback to previous Helm release
+      helm rollback sdr-platform-green -n $KUBE_NAMESPACE_PRODUCTION
+
+      # Switch traffic back to blue
+      kubectl patch service sdr-api-gateway \
+        -n $KUBE_NAMESPACE_PRODUCTION \
+        -p '{"spec":{"selector":{"app":"sdr-api-gateway","version":"blue"}}}'
+
+      echo "Rollback complete!"
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ============================================================================
+# Cache Configuration
+# ============================================================================
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .cache/pip
+    - .pytest_cache
+    - node_modules/
+
+# ============================================================================
+# End of GitLab CI/CD Pipeline
+# ============================================================================

@@ -1,0 +1,216 @@
+# SDR-O-RAN Platform - Terraform Variables Example
+# Copy this file to terraform.tfvars and customize for your environment
+
+# ==============================================================================
+# CLUSTER CONFIGURATION
+# ==============================================================================
+
+cluster_name       = "sdr-oran-prod"
+environment        = "production"  # Options: dev, staging, production
+aws_region         = "us-east-1"   # Primary region for deployment
+kubernetes_version = "1.33"        # Kubernetes version (1.30+)
+
+# ==============================================================================
+# NETWORK CONFIGURATION
+# ==============================================================================
+
+vpc_cidr                = "10.0.0.0/16"  # VPC CIDR block
+availability_zones_count = 3              # Number of AZs (2-6)
+
+# IMPORTANT: Restrict this to your organization's IP ranges in production
+allowed_cidr_blocks = [
+  "0.0.0.0/0"  # Allow all (NOT RECOMMENDED for production)
+  # "203.0.113.0/24",  # Example: Office network
+  # "198.51.100.0/24", # Example: VPN network
+]
+
+# ==============================================================================
+# NODE GROUP CONFIGURATION
+# ==============================================================================
+
+# Instance type options for 5G RAN workloads:
+# - m5.2xlarge (8 vCPU, 32GB RAM) - Recommended for production
+# - m5.xlarge (4 vCPU, 16GB RAM) - For dev/staging
+# - m5.4xlarge (16 vCPU, 64GB RAM) - For high-performance needs
+# - c5.4xlarge (16 vCPU, 32GB RAM) - For compute-intensive workloads
+node_instance_type = "m5.2xlarge"
+
+# Scaling configuration
+node_desired_count = 3   # Initial number of nodes
+node_min_count     = 3   # Minimum nodes (for HA, keep >= 3)
+node_max_count     = 10  # Maximum nodes (for auto-scaling)
+
+# Storage configuration
+node_disk_size     = 100  # GB per node (20-16384)
+node_capacity_type = "ON_DEMAND"  # Options: ON_DEMAND, SPOT
+
+# ==============================================================================
+# EKS ADD-ON VERSIONS
+# ==============================================================================
+
+# Keep these updated with latest stable versions
+vpc_cni_version    = "v1.18.0-eksbuild.1"
+coredns_version    = "v1.11.1-eksbuild.4"
+kube_proxy_version = "v1.33.0-eksbuild.1"
+ebs_csi_version    = "v1.28.0-eksbuild.1"
+
+# ==============================================================================
+# STORAGE CONFIGURATION (Redis SDL)
+# ==============================================================================
+
+redis_storage_size = 50      # GB (10-1000)
+redis_storage_iops = 16000   # IOPS (3000-16000 for gp3)
+
+# ==============================================================================
+# LOGGING AND MONITORING
+# ==============================================================================
+
+log_retention_days = 30  # CloudWatch logs retention (1-3653 days)
+
+# ==============================================================================
+# FEATURE FLAGS
+# ==============================================================================
+
+# Auto-scaling
+enable_cluster_autoscaler = true
+enable_metrics_server     = true
+
+# Monitoring
+enable_container_insights = true
+enable_prometheus         = true
+enable_grafana            = true
+
+# Security
+enable_encryption_at_rest    = true
+enable_secrets_encryption    = true
+enable_pod_security_policy   = true
+enable_audit_logging         = true
+enable_compliance_scanning   = true
+
+# Networking
+enable_network_policy  = true
+network_policy_provider = "calico"  # Options: calico, cilium
+
+# Load Balancing
+enable_nlb          = true
+enable_alb          = true
+load_balancer_type  = "network"  # Options: network, application
+
+# DNS and Certificates
+enable_external_dns = true
+domain_name         = "sdr-oran.example.com"  # Your domain
+enable_cert_manager = true
+cert_manager_email  = "admin@example.com"     # Let's Encrypt notifications
+
+# Service Mesh (Optional)
+enable_service_mesh    = false
+service_mesh_provider  = "istio"  # Options: istio, linkerd
+
+# High Availability
+enable_multi_az = true
+
+# Backup and DR
+backup_retention_days       = 30
+enable_cross_region_backup  = false
+backup_region               = "us-west-2"
+
+# Performance
+enable_enhanced_networking = true
+enable_ebs_optimization    = true
+
+# Cost Optimization
+enable_spot_instances = false  # Use spot instances for non-critical workloads
+spot_max_price        = ""     # Empty = on-demand price
+
+# ==============================================================================
+# TAGGING
+# ==============================================================================
+
+owner_email = "admin@yourcompany.com"  # Resource owner
+cost_center = "telecom-ran"             # Billing/cost tracking
+
+common_tags = {
+  Project     = "SDR-O-RAN"
+  ManagedBy   = "Terraform"
+  Repository  = "github.com/yourorg/sdr-oran"
+  Application = "5G-RAN"
+  Technology  = "O-RAN"
+  Team        = "RAN-Engineering"
+  CostCenter  = "telecom-ran"
+}
+
+# ==============================================================================
+# ENVIRONMENT-SPECIFIC EXAMPLES
+# ==============================================================================
+
+# PRODUCTION ENVIRONMENT
+# ---------------------
+# cluster_name       = "sdr-oran-prod"
+# environment        = "production"
+# node_instance_type = "m5.2xlarge"
+# node_desired_count = 3
+# node_min_count     = 3
+# node_max_count     = 10
+# enable_multi_az    = true
+# backup_retention_days = 30
+
+# STAGING ENVIRONMENT
+# ------------------
+# cluster_name       = "sdr-oran-staging"
+# environment        = "staging"
+# node_instance_type = "m5.xlarge"
+# node_desired_count = 2
+# node_min_count     = 2
+# node_max_count     = 5
+# enable_multi_az    = false
+# backup_retention_days = 7
+
+# DEVELOPMENT ENVIRONMENT
+# ----------------------
+# cluster_name       = "sdr-oran-dev"
+# environment        = "dev"
+# node_instance_type = "m5.large"
+# node_desired_count = 1
+# node_min_count     = 1
+# node_max_count     = 3
+# enable_multi_az    = false
+# backup_retention_days = 3
+# enable_spot_instances = true
+
+# ==============================================================================
+# COST OPTIMIZATION TIPS
+# ==============================================================================
+
+# 1. Use Reserved Instances for production (40-60% savings)
+# 2. Use Spot Instances for non-critical dev/test workloads (70-90% savings)
+# 3. Enable cluster autoscaler to scale down during off-hours
+# 4. Use gp3 volumes instead of gp2 (20% cost savings)
+# 5. Enable S3 lifecycle policies for logs and backups
+# 6. Use AWS Savings Plans for compute commitments
+# 7. Right-size instances based on actual usage metrics
+
+# ==============================================================================
+# SECURITY BEST PRACTICES
+# ==============================================================================
+
+# 1. Restrict allowed_cidr_blocks to known networks
+# 2. Enable all encryption options
+# 3. Use private subnets for worker nodes
+# 4. Enable audit logging and compliance scanning
+# 5. Implement network policies
+# 6. Use IAM roles for service accounts (IRSA)
+# 7. Regular security scanning and patching
+# 8. Rotate credentials and certificates regularly
+
+# ==============================================================================
+# PERFORMANCE TUNING FOR 5G RAN
+# ==============================================================================
+
+# For latency-sensitive 5G RAN workloads:
+# 1. Use c5n or m5n instances for enhanced networking
+# 2. Enable SR-IOV for data plane
+# 3. Configure CPU pinning and isolation
+# 4. Use local NVMe storage for caching
+# 5. Optimize kernel parameters (see user-data.sh)
+# 6. Use gp3 with maximum IOPS for storage
+# 7. Enable Kubernetes Topology Manager

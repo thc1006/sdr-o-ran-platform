@@ -1,0 +1,194 @@
+# SDR-O-RAN Infrastructure - Git Ignore File
+
+# ==============================================================================
+# Terraform Files
+# ==============================================================================
+
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude all .tfvars files (may contain sensitive data)
+*.tfvars
+*.tfvars.json
+
+# Ignore override files as they are usually used to override resources locally
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Include override files you do wish to add to version control using negated pattern
+# !example_override.tf
+
+# Terraform plan files
+*.tfplan
+tfplan
+plan.json
+
+# CLI configuration files
+.terraformrc
+terraform.rc
+
+# Terraform lock files (optional - uncomment if you want to ignore)
+# .terraform.lock.hcl
+
+# ==============================================================================
+# IDE and Editor Files
+# ==============================================================================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ==============================================================================
+# OS Files
+# ==============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+
+# ==============================================================================
+# Backup and Temporary Files
+# ==============================================================================
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+*.temp
+
+# Log files
+*.log
+logs/
+
+# Compressed files
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+
+# ==============================================================================
+# AWS and Cloud Provider Files
+# ==============================================================================
+
+# AWS credentials (should never be in repo)
+.aws/
+credentials
+config
+
+# Kubernetes config files (may contain sensitive data)
+kubeconfig
+*.kubeconfig
+.kube/
+
+# Helm
+.helm/
+
+# ==============================================================================
+# Generated Files
+# ==============================================================================
+
+# Generated documentation
+docs/generated/
+
+# Generated certificates
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+
+# SSH keys
+id_rsa
+id_rsa.pub
+*.pub
+
+# ==============================================================================
+# Application-Specific
+# ==============================================================================
+
+# Node modules
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+ENV/
+
+# Ruby
+*.gem
+.bundle/
+
+# ==============================================================================
+# Testing and Development
+# ==============================================================================
+
+# Test files
+test-output/
+*.test
+coverage/
+.coverage
+
+# Development environment
+.env
+.env.local
+.env.*.local
+
+# ==============================================================================
+# Keep These Files
+# ==============================================================================
+
+# Keep example files
+!*.example
+!terraform.tfvars.example
+
+# Keep README and documentation
+!README.md
+!*.md
+
+# Keep policy files
+!policies/*.json

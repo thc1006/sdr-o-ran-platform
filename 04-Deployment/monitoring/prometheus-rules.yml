@@ -1,0 +1,527 @@
+# Prometheus Alerting Rules for SDR O-RAN Platform
+# Version: 2.50+
+# Last Updated: 2025-10-27
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+data:
+  alerts.yml: |
+    groups:
+      # ===========================================
+      # E2E Network Performance Alerts
+      # ===========================================
+      - name: e2e_latency_alerts
+        interval: 30s
+        rules:
+          - alert: HighLEOLatency
+            expr: histogram_quantile(0.95, rate(sdr_e2e_latency_seconds_bucket{orbit="leo"}[5m])) > 0.100
+            for: 2m
+            labels:
+              severity: warning
+              component: network
+              orbit: leo
+            annotations:
+              summary: "High LEO satellite E2E latency detected"
+              description: "95th percentile LEO latency is {{ $value | humanizeDuration }} (threshold: 100ms). Current measurement exceeds acceptable range for LEO orbit (47-73ms typical)."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/high-latency"
+
+          - alert: CriticalLEOLatency
+            expr: histogram_quantile(0.95, rate(sdr_e2e_latency_seconds_bucket{orbit="leo"}[5m])) > 0.150
+            for: 1m
+            labels:
+              severity: critical
+              component: network
+              orbit: leo
+            annotations:
+              summary: "CRITICAL: LEO satellite E2E latency severely degraded"
+              description: "95th percentile LEO latency is {{ $value | humanizeDuration }} (critical threshold: 150ms). Immediate investigation required."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/critical-latency"
+
+          - alert: HighGEOLatency
+            expr: histogram_quantile(0.95, rate(sdr_e2e_latency_seconds_bucket{orbit="geo"}[5m])) > 0.350
+            for: 3m
+            labels:
+              severity: warning
+              component: network
+              orbit: geo
+            annotations:
+              summary: "High GEO satellite E2E latency detected"
+              description: "95th percentile GEO latency is {{ $value | humanizeDuration }} (threshold: 350ms). Exceeds typical GEO performance baseline."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/high-latency"
+
+          - alert: LatencySpike
+            expr: rate(sdr_e2e_latency_seconds_sum[1m]) / rate(sdr_e2e_latency_seconds_count[1m]) > 2 * (rate(sdr_e2e_latency_seconds_sum[1h]) / rate(sdr_e2e_latency_seconds_count[1h]))
+            for: 2m
+            labels:
+              severity: warning
+              component: network
+            annotations:
+              summary: "Latency spike detected"
+              description: "Current average latency is 2x higher than the 1-hour average. Possible network congestion or routing issue."
+
+      # ===========================================
+      # Throughput and Data Rate Alerts
+      # ===========================================
+      - name: throughput_alerts
+        interval: 30s
+        rules:
+          - alert: LowThroughput
+            expr: rate(sdr_throughput_bytes_total[5m]) * 8 / 1000000 < 50
+            for: 5m
+            labels:
+              severity: warning
+              component: sdr
+            annotations:
+              summary: "SDR throughput below minimum threshold"
+              description: "Current throughput: {{ $value | humanize }}Mbps (threshold: 50Mbps). Measured baseline: 80-95Mbps. Check USRP configuration and channel conditions."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/low-throughput"
+
+          - alert: CriticalLowThroughput
+            expr: rate(sdr_throughput_bytes_total[5m]) * 8 / 1000000 < 30
+            for: 2m
+            labels:
+              severity: critical
+              component: sdr
+            annotations:
+              summary: "CRITICAL: SDR throughput severely degraded"
+              description: "Current throughput: {{ $value | humanize }}Mbps (critical threshold: 30Mbps). Service quality severely impacted."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/critical-throughput"
+
+          - alert: ThroughputDegradation
+            expr: rate(sdr_throughput_bytes_total[5m]) < 0.7 * rate(sdr_throughput_bytes_total[1h] offset 1h)
+            for: 5m
+            labels:
+              severity: warning
+              component: sdr
+            annotations:
+              summary: "Throughput degradation detected"
+              description: "Current throughput is 30% below historical average. Investigate channel quality or USRP issues."
+
+          - alert: IQSampleRateAnomaly
+            expr: abs(rate(sdr_iq_samples_total[5m]) - 30720000) > 1000000
+            for: 3m
+            labels:
+              severity: warning
+              component: usrp
+            annotations:
+              summary: "IQ sample rate deviation detected"
+              description: "IQ sample rate deviates from expected 30.72 MHz. Current: {{ $value | humanize }}Hz. Check USRP clock synchronization."
+
+      # ===========================================
+      # DRL Inference Performance Alerts
+      # ===========================================
+      - name: drl_inference_alerts
+        interval: 30s
+        rules:
+          - alert: HighDRLInferenceLatency
+            expr: histogram_quantile(0.95, rate(drl_inference_latency_seconds_bucket[5m])) > 0.015
+            for: 3m
+            labels:
+              severity: warning
+              component: aiml
+              model: drl
+            annotations:
+              summary: "DRL inference latency exceeds threshold"
+              description: "95th percentile DRL inference latency: {{ $value | humanizeDuration }} (threshold: 15ms). May impact real-time decision making."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/high-inference-latency"
+
+          - alert: CriticalDRLInferenceLatency
+            expr: histogram_quantile(0.95, rate(drl_inference_latency_seconds_bucket[5m])) > 0.025
+            for: 1m
+            labels:
+              severity: critical
+              component: aiml
+              model: drl
+            annotations:
+              summary: "CRITICAL: DRL inference latency severely degraded"
+              description: "95th percentile DRL inference latency: {{ $value | humanizeDuration }} (critical: 25ms). Real-time operation compromised."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/critical-inference"
+
+          - alert: DRLInferenceErrors
+            expr: rate(drl_inference_errors_total[5m]) > 0.01
+            for: 2m
+            labels:
+              severity: warning
+              component: aiml
+              model: drl
+            annotations:
+              summary: "DRL inference errors detected"
+              description: "Inference error rate: {{ $value | humanizePercentage }}. Check model health and input data quality."
+
+          - alert: DRLModelStale
+            expr: time() - drl_model_last_update_timestamp_seconds > 3600
+            for: 5m
+            labels:
+              severity: warning
+              component: aiml
+              model: drl
+            annotations:
+              summary: "DRL model not updated recently"
+              description: "DRL model hasn't been updated for {{ $value | humanizeDuration }}. Check training pipeline."
+
+      # ===========================================
+      # Container Resource Alerts
+      # ===========================================
+      - name: container_resource_alerts
+        interval: 60s
+        rules:
+          - alert: HighCPUUsage
+            expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 80
+            for: 5m
+            labels:
+              severity: warning
+              component: infrastructure
+            annotations:
+              summary: "Container CPU usage high"
+              description: "Container {{ $labels.pod }} CPU usage: {{ $value | humanize }}% (threshold: 80%). Consider scaling or optimizing."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/high-cpu"
+
+          - alert: CriticalCPUUsage
+            expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 95
+            for: 2m
+            labels:
+              severity: critical
+              component: infrastructure
+            annotations:
+              summary: "CRITICAL: Container CPU usage near maximum"
+              description: "Container {{ $labels.pod }} CPU usage: {{ $value | humanize }}% (critical: 95%). Immediate action required."
+
+          - alert: HighMemoryUsage
+            expr: container_memory_working_set_bytes / container_spec_memory_limit_bytes * 100 > 85
+            for: 5m
+            labels:
+              severity: warning
+              component: infrastructure
+            annotations:
+              summary: "Container memory usage high"
+              description: "Container {{ $labels.pod }} memory usage: {{ $value | humanize }}% (threshold: 85%). Risk of OOM."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/high-memory"
+
+          - alert: CriticalMemoryUsage
+            expr: container_memory_working_set_bytes / container_spec_memory_limit_bytes * 100 > 95
+            for: 1m
+            labels:
+              severity: critical
+              component: infrastructure
+            annotations:
+              summary: "CRITICAL: Container memory near limit"
+              description: "Container {{ $labels.pod }} memory usage: {{ $value | humanize }}% (critical: 95%). Imminent OOM risk."
+
+          - alert: ContainerRestartLoop
+            expr: rate(kube_pod_container_status_restarts_total[15m]) > 0.5
+            for: 5m
+            labels:
+              severity: warning
+              component: infrastructure
+            annotations:
+              summary: "Container restart loop detected"
+              description: "Container {{ $labels.pod }} restarting frequently. Check logs for crash causes."
+
+          - alert: GPUUtilizationLow
+            expr: nvidia_gpu_duty_cycle < 30
+            for: 10m
+            labels:
+              severity: info
+              component: aiml
+            annotations:
+              summary: "GPU utilization low"
+              description: "GPU {{ $labels.gpu }} utilization: {{ $value }}%. Consider workload optimization or resource reallocation."
+
+      # ===========================================
+      # PQC Security Alerts
+      # ===========================================
+      - name: pqc_security_alerts
+        interval: 30s
+        rules:
+          - alert: PQCHandshakeFailures
+            expr: rate(pqc_handshake_failures_total[5m]) > 0.05
+            for: 3m
+            labels:
+              severity: warning
+              component: security
+              algorithm: ml-kem
+            annotations:
+              summary: "High rate of PQC handshake failures"
+              description: "ML-KEM/ML-DSA handshake failure rate: {{ $value | humanizePercentage }}. Check certificate validity and algorithm compatibility."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/pqc-failures"
+
+          - alert: CriticalPQCHandshakeFailures
+            expr: rate(pqc_handshake_failures_total[5m]) > 0.20
+            for: 1m
+            labels:
+              severity: critical
+              component: security
+              algorithm: ml-kem
+            annotations:
+              summary: "CRITICAL: PQC handshake failures widespread"
+              description: "ML-KEM/ML-DSA handshake failure rate: {{ $value | humanizePercentage }} (critical: 20%). Secure communications compromised."
+
+          - alert: MLKEMKeyRotationOverdue
+            expr: time() - pqc_key_rotation_last_timestamp_seconds{algorithm="ml-kem-768"} > 604800
+            for: 1h
+            labels:
+              severity: warning
+              component: security
+              algorithm: ml-kem
+            annotations:
+              summary: "ML-KEM key rotation overdue"
+              description: "ML-KEM-768 keys haven't been rotated for {{ $value | humanizeDuration }}. Recommended rotation: weekly."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/key-rotation"
+
+          - alert: MLDSACertificateExpiringSoon
+            expr: pqc_certificate_expiry_timestamp_seconds{algorithm="ml-dsa-65"} - time() < 604800
+            for: 1h
+            labels:
+              severity: warning
+              component: security
+              algorithm: ml-dsa
+            annotations:
+              summary: "ML-DSA certificate expiring soon"
+              description: "ML-DSA-65 certificate expires in {{ $value | humanizeDuration }}. Initiate renewal process."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/cert-renewal"
+
+          - alert: MLDSACertificateExpired
+            expr: pqc_certificate_expiry_timestamp_seconds{algorithm="ml-dsa-65"} - time() < 0
+            for: 1m
+            labels:
+              severity: critical
+              component: security
+              algorithm: ml-dsa
+            annotations:
+              summary: "CRITICAL: ML-DSA certificate expired"
+              description: "ML-DSA-65 certificate has expired. Secure communications may be blocked."
+
+          - alert: PQCOperationLatencyHigh
+            expr: histogram_quantile(0.95, rate(pqc_operation_duration_seconds_bucket{operation="encapsulation"}[5m])) > 0.005
+            for: 5m
+            labels:
+              severity: warning
+              component: security
+              algorithm: ml-kem
+            annotations:
+              summary: "High PQC operation latency"
+              description: "ML-KEM encapsulation latency: {{ $value | humanizeDuration }} (threshold: 5ms). Performance degradation detected."
+
+      # ===========================================
+      # O-RAN RIC Alerts
+      # ===========================================
+      - name: oran_ric_alerts
+        interval: 30s
+        rules:
+          - alert: E2InterfaceDown
+            expr: up{job="oran-e2-interface"} == 0
+            for: 1m
+            labels:
+              severity: critical
+              component: oran-ric
+              interface: e2
+            annotations:
+              summary: "CRITICAL: E2 interface down"
+              description: "E2 interface connection lost. RAN control plane unavailable."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/e2-down"
+
+          - alert: HighE2ControlLatency
+            expr: histogram_quantile(0.95, rate(oran_e2_control_latency_seconds_bucket[5m])) > 0.010
+            for: 3m
+            labels:
+              severity: warning
+              component: oran-ric
+              interface: e2
+            annotations:
+              summary: "High E2 control plane latency"
+              description: "95th percentile E2 control latency: {{ $value | humanizeDuration }} (threshold: 10ms). RIC control decisions delayed."
+
+          - alert: XAppPerformanceDegradation
+            expr: rate(xapp_decision_latency_seconds_sum[5m]) / rate(xapp_decision_latency_seconds_count[5m]) > 0.020
+            for: 5m
+            labels:
+              severity: warning
+              component: oran-ric
+              xapp: "{{ $labels.xapp_name }}"
+            annotations:
+              summary: "xApp performance degradation"
+              description: "xApp {{ $labels.xapp_name }} decision latency: {{ $value | humanizeDuration }} (threshold: 20ms). Check xApp health."
+
+          - alert: KPMMetricsNotReceived
+            expr: rate(oran_kpm_metrics_received_total[5m]) == 0
+            for: 3m
+            labels:
+              severity: warning
+              component: oran-ric
+              service: kpm
+            annotations:
+              summary: "KPM metrics not being received"
+              description: "No KPM metrics received from RAN for 3 minutes. Check E2 KPM service model."
+
+          - alert: RICOverload
+            expr: rate(oran_ric_request_queue_length[1m]) > 1000
+            for: 2m
+            labels:
+              severity: warning
+              component: oran-ric
+            annotations:
+              summary: "RIC request queue overload"
+              description: "RIC request queue length: {{ $value }}. Consider scaling or optimizing xApps."
+
+      # ===========================================
+      # USRP Hardware Alerts
+      # ===========================================
+      - name: usrp_hardware_alerts
+        interval: 30s
+        rules:
+          - alert: USRPPacketLoss
+            expr: rate(usrp_packet_loss_total[5m]) / rate(usrp_packets_total[5m]) * 100 > 0.1
+            for: 3m
+            labels:
+              severity: warning
+              component: usrp
+            annotations:
+              summary: "USRP packet loss detected"
+              description: "Packet loss rate: {{ $value | humanizePercentage }}. Check USB/Ethernet bandwidth and system performance."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/usrp-packet-loss"
+
+          - alert: CriticalUSRPPacketLoss
+            expr: rate(usrp_packet_loss_total[5m]) / rate(usrp_packets_total[5m]) * 100 > 1.0
+            for: 1m
+            labels:
+              severity: critical
+              component: usrp
+            annotations:
+              summary: "CRITICAL: High USRP packet loss"
+              description: "Packet loss rate: {{ $value | humanizePercentage }} (critical: 1%). Data integrity compromised."
+
+          - alert: USRPOverflowErrors
+            expr: rate(usrp_overflow_errors_total[5m]) > 10
+            for: 2m
+            labels:
+              severity: warning
+              component: usrp
+            annotations:
+              summary: "USRP overflow errors detected"
+              description: "Overflow error rate: {{ $value }}/sec. Host system cannot keep up with USRP data rate."
+
+          - alert: USRPUnderrunErrors
+            expr: rate(usrp_underrun_errors_total[5m]) > 10
+            for: 2m
+            labels:
+              severity: warning
+              component: usrp
+            annotations:
+              summary: "USRP underrun errors detected"
+              description: "Underrun error rate: {{ $value }}/sec. TX buffer starvation. Check application performance."
+
+          - alert: USRPTemperatureHigh
+            expr: usrp_temperature_celsius > 75
+            for: 5m
+            labels:
+              severity: warning
+              component: usrp
+            annotations:
+              summary: "USRP temperature high"
+              description: "USRP temperature: {{ $value }}°C (threshold: 75°C). Check cooling and ventilation."
+
+          - alert: USRPConnectionLost
+            expr: up{job="usrp-exporter"} == 0
+            for: 1m
+            labels:
+              severity: critical
+              component: usrp
+            annotations:
+              summary: "CRITICAL: USRP connection lost"
+              description: "Cannot communicate with USRP device. Check hardware and network connectivity."
+
+      # ===========================================
+      # Service Availability Alerts
+      # ===========================================
+      - name: service_availability_alerts
+        interval: 60s
+        rules:
+          - alert: ServiceDown
+            expr: up{job!~"kubernetes-.*"} == 0
+            for: 1m
+            labels:
+              severity: critical
+              component: service
+            annotations:
+              summary: "CRITICAL: Service {{ $labels.job }} is down"
+              description: "Service {{ $labels.job }} has been unavailable for 1 minute."
+              runbook_url: "https://docs.sdr-platform.io/runbooks/service-down"
+
+          - alert: HighErrorRate
+            expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+            for: 3m
+            labels:
+              severity: warning
+              component: service
+            annotations:
+              summary: "High HTTP error rate"
+              description: "Service {{ $labels.job }} 5xx error rate: {{ $value | humanizePercentage }} (threshold: 5%)."
+
+          - alert: PodCrashLooping
+            expr: rate(kube_pod_container_status_restarts_total[30m]) > 0
+            for: 5m
+            labels:
+              severity: warning
+              component: kubernetes
+            annotations:
+              summary: "Pod crash looping"
+              description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping. Check pod logs."
+
+          - alert: PersistentVolumeFullSoon
+            expr: kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes * 100 < 15
+            for: 10m
+            labels:
+              severity: warning
+              component: storage
+            annotations:
+              summary: "Persistent volume filling up"
+              description: "PV {{ $labels.persistentvolumeclaim }} has {{ $value | humanize }}% space remaining."
+
+      # ===========================================
+      # AI/ML Training Alerts
+      # ===========================================
+      - name: aiml_training_alerts
+        interval: 60s
+        rules:
+          - alert: TrainingLossNotDecreasing
+            expr: (avg_over_time(drl_training_loss[10m]) - avg_over_time(drl_training_loss[10m] offset 1h)) > 0
+            for: 30m
+            labels:
+              severity: info
+              component: aiml
+            annotations:
+              summary: "DRL training loss not decreasing"
+              description: "Training loss hasn't decreased in the last hour. Check hyperparameters and data quality."
+
+          - alert: ModelAccuracyDegraded
+            expr: drl_model_accuracy < 0.80
+            for: 10m
+            labels:
+              severity: warning
+              component: aiml
+            annotations:
+              summary: "Model accuracy below threshold"
+              description: "Model accuracy: {{ $value | humanizePercentage }} (threshold: 80%). Retraining may be required."
+
+          - alert: TrainingPipelineStalled
+            expr: time() - drl_training_last_update_timestamp_seconds > 7200
+            for: 10m
+            labels:
+              severity: warning
+              component: aiml
+            annotations:
+              summary: "Training pipeline stalled"
+              description: "No training updates for {{ $value | humanizeDuration }}. Check training job status."
+
+          - alert: DatasetSizeInsufficient
+            expr: drl_training_dataset_size < 10000
+            for: 5m
+            labels:
+              severity: warning
+              component: aiml
+            annotations:
+              summary: "Training dataset too small"
+              description: "Dataset size: {{ $value }} samples (recommended: >10000). Model quality may be impacted."

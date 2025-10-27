@@ -1,0 +1,397 @@
+# ============================================================================
+# ArgoCD Application Manifest for SDR-O-RAN Platform
+# ============================================================================
+# Version: 1.0.0
+# Date: 2025-10-27
+# Author: thc1006@ieee.org
+#
+# GitOps Configuration:
+# - Automated sync from main branch
+# - Self-healing enabled
+# - Pruning enabled (remove deleted resources)
+# - Health assessment before sync
+#
+# Usage:
+#   kubectl apply -f argocd-application.yaml -n argocd
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sdr-platform
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: sdr-platform
+    app.kubernetes.io/component: o-ran
+    app.kubernetes.io/part-of: sdr-oran-platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io  # Delete resources when app is deleted
+
+spec:
+  # ============================================================================
+  # Project Configuration
+  # ============================================================================
+  project: default
+
+  # ============================================================================
+  # Source Repository
+  # ============================================================================
+  source:
+    repoURL: https://github.com/sdr-oran/sdr-platform.git
+    targetRevision: main
+    path: 04-Deployment/kubernetes/helm/sdr-platform
+
+    # Helm-specific configuration
+    helm:
+      releaseName: sdr-platform
+
+      # Values files to use
+      valueFiles:
+        - values-production.yaml
+
+      # Override specific values
+      values: |
+        global:
+          environment: production
+          imageRegistry: ghcr.io/sdr-oran
+          imageTag: latest
+          domain: sdr.example.com
+
+        replicaCount: 5
+
+        autoscaling:
+          enabled: true
+          minReplicas: 5
+          maxReplicas: 20
+          targetCPUUtilizationPercentage: 70
+
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-prod
+            nginx.ingress.kubernetes.io/ssl-redirect: "true"
+            nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+          hosts:
+            - host: sdr.example.com
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls:
+            - secretName: sdr-tls
+              hosts:
+                - sdr.example.com
+
+        # Post-Quantum Cryptography configuration
+        pqc:
+          enabled: true
+          algorithm: kyber1024
+          signatureAlgorithm: dilithium5
+
+        # Monitoring configuration
+        monitoring:
+          enabled: true
+          prometheus:
+            enabled: true
+          grafana:
+            enabled: true
+
+      # Helm parameters (alternative to values)
+      parameters:
+        - name: apiGateway.image.tag
+          value: v1.2.3
+        - name: grpcServer.resources.requests.cpu
+          value: 2000m
+
+      # Skip CRDs (if already installed)
+      skipCrds: false
+
+      # Timeout for Helm operations
+      timeout: 10m
+
+  # ============================================================================
+  # Destination Cluster
+  # ============================================================================
+  destination:
+    server: https://kubernetes.default.svc  # In-cluster
+    # server: https://external-k8s-cluster:6443  # External cluster
+
+    namespace: sdr-production
+
+  # ============================================================================
+  # Sync Policy
+  # ============================================================================
+  syncPolicy:
+    # Automated sync configuration
+    automated:
+      # Automatically sync when changes detected
+      prune: true        # Delete resources not in git
+      selfHeal: true     # Force sync if cluster state drifts
+      allowEmpty: false  # Don't sync if no resources
+
+    # Sync options
+    syncOptions:
+      - CreateNamespace=true     # Create namespace if missing
+      - PruneLast=true           # Prune resources after sync
+      - ApplyOutOfSyncOnly=true  # Only sync out-of-sync resources
+      - ServerSideApply=true     # Use server-side apply (K8s 1.22+)
+      - RespectIgnoreDifferences=true
+
+    # Retry configuration
+    retry:
+      limit: 5                   # Max retry attempts
+      backoff:
+        duration: 5s             # Initial backoff duration
+        factor: 2                # Backoff multiplier
+        maxDuration: 3m          # Max backoff duration
+
+  # ============================================================================
+  # Ignore Differences
+  # ============================================================================
+  # Ignore specific fields that ArgoCD should not manage
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # HPA manages replicas
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /spec/currentReplicas
+        - /status
+
+  # ============================================================================
+  # Health Assessment
+  # ============================================================================
+  # Custom health checks for specific resources
+  # health:
+  #   - group: custom.sdr.io
+  #     kind: SDRResource
+  #     check: |
+  #       hs = {}
+  #       if obj.status ~= nil then
+  #         if obj.status.phase == "Running" then
+  #           hs.status = "Healthy"
+  #           hs.message = "SDR resource is running"
+  #         elseif obj.status.phase == "Failed" then
+  #           hs.status = "Degraded"
+  #           hs.message = "SDR resource failed"
+  #         else
+  #           hs.status = "Progressing"
+  #           hs.message = "SDR resource is progressing"
+  #         end
+  #       else
+  #         hs.status = "Progressing"
+  #         hs.message = "Waiting for status"
+  #       end
+  #       return hs
+
+---
+# ============================================================================
+# ArgoCD AppProject (Optional - for multi-tenancy)
+# ============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: sdr-platform-project
+  namespace: argocd
+spec:
+  description: SDR-O-RAN Platform Project
+
+  # Source repositories allowed
+  sourceRepos:
+    - 'https://github.com/sdr-oran/*'
+    - 'https://charts.helm.sh/*'
+
+  # Destination clusters allowed
+  destinations:
+    - namespace: 'sdr-*'
+      server: https://kubernetes.default.svc
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+
+  # Cluster resource whitelist (what can be deployed)
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+    - group: 'apiextensions.k8s.io'
+      kind: CustomResourceDefinition
+
+  # Namespace resource whitelist
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  # Roles for RBAC
+  roles:
+    - name: developer
+      description: Developer role for SDR platform
+      policies:
+        - p, proj:sdr-platform-project:developer, applications, get, sdr-platform-project/*, allow
+        - p, proj:sdr-platform-project:developer, applications, sync, sdr-platform-project/*, allow
+      groups:
+        - sdr-developers
+
+    - name: admin
+      description: Admin role for SDR platform
+      policies:
+        - p, proj:sdr-platform-project:admin, applications, *, sdr-platform-project/*, allow
+      groups:
+        - sdr-admins
+
+---
+# ============================================================================
+# ArgoCD Notifications (Slack/Email)
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+data:
+  # Notification triggers
+  trigger.on-deployed: |
+    - description: Application is synced and healthy
+      send:
+      - app-deployed
+      when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+
+  trigger.on-health-degraded: |
+    - description: Application has degraded
+      send:
+      - app-health-degraded
+      when: app.status.health.status == 'Degraded'
+
+  trigger.on-sync-failed: |
+    - description: Application sync failed
+      send:
+      - app-sync-failed
+      when: app.status.operationState.phase in ['Error', 'Failed']
+
+  # Notification templates
+  template.app-deployed: |
+    message: |
+      ✅ Application {{.app.metadata.name}} has been successfully deployed!
+
+      Sync Status: {{.app.status.sync.status}}
+      Health Status: {{.app.status.health.status}}
+      Revision: {{.app.status.sync.revision}}
+
+      {{if .app.spec.source.repoURL}}
+      Repository: {{.app.spec.source.repoURL}}
+      {{end}}
+    slack:
+      attachments: |
+        [{
+          "title": "{{ .app.metadata.name}}",
+          "title_link":"{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "good",
+          "fields": [
+          {
+            "title": "Sync Status",
+            "value": "{{.app.status.sync.status}}",
+            "short": true
+          },
+          {
+            "title": "Health Status",
+            "value": "{{.app.status.health.status}}",
+            "short": true
+          },
+          {
+            "title": "Revision",
+            "value": "{{.app.status.sync.revision}}",
+            "short": true
+          }
+          ]
+        }]
+
+  template.app-health-degraded: |
+    message: |
+      ⚠️ Application {{.app.metadata.name}} has degraded!
+
+      Health Status: {{.app.status.health.status}}
+
+      Please investigate immediately.
+    slack:
+      attachments: |
+        [{
+          "title": "{{ .app.metadata.name}}",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "warning",
+          "fields": [
+          {
+            "title": "Health Status",
+            "value": "{{.app.status.health.status}}",
+            "short": true
+          }
+          ]
+        }]
+
+  template.app-sync-failed: |
+    message: |
+      ❌ Application {{.app.metadata.name}} sync failed!
+
+      Sync Status: {{.app.status.operationState.phase}}
+      Message: {{.app.status.operationState.message}}
+    slack:
+      attachments: |
+        [{
+          "title": "{{ .app.metadata.name}}",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "danger",
+          "fields": [
+          {
+            "title": "Sync Status",
+            "value": "{{.app.status.operationState.phase}}",
+            "short": true
+          },
+          {
+            "title": "Message",
+            "value": "{{.app.status.operationState.message}}",
+            "short": false
+          }
+          ]
+        }]
+
+  # Notification services
+  service.slack: |
+    token: $slack-token
+
+---
+# ============================================================================
+# ArgoCD Notifications Secret
+# ============================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-notifications-secret
+  namespace: argocd
+type: Opaque
+stringData:
+  slack-token: xoxb-your-slack-bot-token-here
+
+---
+# ============================================================================
+# Subscription for Notifications
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+data:
+  subscriptions: |
+    - recipients:
+      - slack:sdr-platform-alerts
+      triggers:
+      - on-deployed
+      - on-health-degraded
+      - on-sync-failed
+
+# ============================================================================
+# End of ArgoCD Configuration
+# ============================================================================
