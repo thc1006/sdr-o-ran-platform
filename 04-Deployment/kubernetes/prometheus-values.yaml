@@ -1,0 +1,34 @@
+# Prometheus Helm Values
+# Minimal configuration for development
+# REQ-INFRA-005: Prometheus for monitoring
+
+# Disable components we don't need yet
+alertmanager:
+  enabled: false
+
+# Keep Prometheus server
+server:
+  enabled: true
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  # Simple persistent storage
+  persistentVolume:
+    enabled: false  # For development, use emptyDir
+
+# Disable pushgateway (not needed for now)
+pushgateway:
+  enabled: false
+
+# Disable node-exporter (not needed for SDR monitoring)
+nodeExporter:
+  enabled: false
+
+# Disable kube-state-metrics (optional)
+kubeStateMetrics:
+  enabled: false

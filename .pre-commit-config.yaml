@@ -1,0 +1,112 @@
+# Pre-commit hooks configuration
+# Runs automated checks before git commit
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+# Author: thc1006@ieee.org
+
+# Avoid over-generation: Only essential hooks, no complex custom hooks
+
+repos:
+  # ========================================================================
+  # Pre-commit built-in hooks
+  # ========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # File checks
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-executables-have-shebangs
+
+      # YAML/JSON/TOML validation
+      - id: check-yaml
+        args: ['--allow-multiple-documents']
+        exclude: 'templates/.*\.yaml$'
+      - id: check-json
+      - id: check-toml
+
+      # Python checks
+      - id: check-ast  # Syntax check
+      - id: check-builtin-literals
+      - id: debug-statements  # No pdb.set_trace()
+      - id: name-tests-test
+        args: ['--pytest-test-first']
+
+      # Code cleanup
+      - id: trailing-whitespace
+        args: ['--markdown-linebreak-ext=md']
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+      # Security
+      - id: detect-private-key
+
+  # ========================================================================
+  # Python code formatting
+  # ========================================================================
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        language_version: python3.11
+        args: ['--line-length=100']
+
+  # ========================================================================
+  # Python import sorting
+  # ========================================================================
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ['--profile=black', '--line-length=100']
+
+  # ========================================================================
+  # Python linting (optional, can be slow)
+  # ========================================================================
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        args: [
+          '--max-line-length=100',
+          '--extend-ignore=E203,W503',  # Black compatibility
+          '--exclude=venv,env,.venv,.git,__pycache__',
+        ]
+
+  # ========================================================================
+  # Security scanning
+  # ========================================================================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: ['-c', 'pyproject.toml']
+        additional_dependencies: ['bandit[toml]']
+        exclude: '^tests/'
+
+  # ========================================================================
+  # Markdown formatting
+  # ========================================================================
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        types_or: [markdown, yaml, json]
+        exclude: '^(CHANGELOG|.*\.lock)\..*$'
+
+# Global settings
+default_language_version:
+  python: python3.11
+
+# Run these hooks in specific stages
+default_stages: [commit]
+
+# Fail fast on first error
+fail_fast: false
+
+# Minimum pre-commit version required
+minimum_pre_commit_version: '3.0.0'

@@ -1,0 +1,67 @@
+# Coverage.py Configuration
+# For use with pytest-cov
+# Author: thc1006@ieee.org
+
+[run]
+# Source directories to measure
+source = 03-Implementation
+
+# Omit files from coverage
+omit =
+    # Test files
+    */test_*.py
+    */tests/*
+    *_test.py
+
+    # Virtual environments
+    */venv/*
+    */env/*
+    */.venv/*
+
+    # Cache and build
+    */__pycache__/*
+    */build/*
+    */dist/*
+
+    # Configuration files
+    */setup.py
+    */conftest.py
+
+# Enable branch coverage
+branch = True
+
+[report]
+# Report output format
+precision = 2
+show_missing = True
+skip_covered = False
+
+# Exclude lines from coverage
+exclude_lines =
+    # Standard pragma
+    pragma: no cover
+
+    # Defensive programming
+    raise AssertionError
+    raise NotImplementedError
+
+    # Debugging code
+    def __repr__
+    def __str__
+
+    # Non-runnable code
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    if typing.TYPE_CHECKING:
+
+    # Abstract methods
+    @abstractmethod
+    @abc.abstractmethod
+
+[html]
+# HTML report directory
+directory = htmlcov
+
+[xml]
+# XML report output
+output = coverage.xml

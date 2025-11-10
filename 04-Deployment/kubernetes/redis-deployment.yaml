@@ -1,0 +1,67 @@
+# Redis Deployment for SDR-O-RAN Platform
+# REQ-INFRA-004: Redis as Shared Data Layer (SDL)
+#
+# Note: This is a minimal single-instance deployment for development.
+# For production, consider Redis Cluster or Sentinel for high availability.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: sdr-oran-ntn
+  labels:
+    app: redis
+    component: sdl
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: redis
+  selector:
+    app: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: sdr-oran-ntn
+  labels:
+    app: redis
+    component: sdl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        component: sdl
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+              name: redis
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5

@@ -29,6 +29,9 @@ import torch.optim as optim
 from torch.distributions import Normal
 import redis
 
+# Import RICState from separate module for proper multiprocessing support
+from ric_state import RICState
+
 # Third-party RL libraries
 try:
     from stable_baselines3 import PPO, SAC
@@ -77,55 +80,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Data Structures
 # =============================================================================
-
-@dataclass
-class RICState:
-    """RIC environment state from E2 KPM indications"""
-    # UE metrics
-    ue_throughput_dl_mbps: float
-    ue_throughput_ul_mbps: float
-    ue_buffer_status_dl_kb: float
-    ue_buffer_status_ul_kb: float
-
-    # Cell metrics
-    prb_utilization_dl_percent: float
-    prb_utilization_ul_percent: float
-    active_ues: int
-
-    # Radio quality
-    cqi_dl: float  # Channel Quality Indicator (0-15)
-    rsrp_dbm: float  # Reference Signal Received Power
-    rsrq_db: float  # Reference Signal Received Quality
-    sinr_db: float  # Signal-to-Interference-plus-Noise Ratio
-
-    # Latency
-    e2e_latency_ms: float
-    rlc_latency_ms: float
-    mac_latency_ms: float
-
-    # Block Error Rate
-    bler_dl: float
-    bler_ul: float
-
-    # Timestamp
-    timestamp_ns: int
-
-    def to_numpy(self) -> np.ndarray:
-        """Convert to numpy array for DRL input"""
-        return np.array([
-            self.ue_throughput_dl_mbps / 100.0,  # Normalize to ~[0, 1]
-            self.ue_throughput_ul_mbps / 50.0,
-            self.prb_utilization_dl_percent / 100.0,
-            self.prb_utilization_ul_percent / 100.0,
-            self.active_ues / 10.0,
-            self.cqi_dl / 15.0,
-            self.rsrp_dbm / -70.0,  # Typical range: -140 to -70 dBm
-            self.sinr_db / 30.0,    # Typical range: -10 to 30 dB
-            self.e2e_latency_ms / 100.0,
-            self.bler_dl * 10.0,  # Typical: 0.001 - 0.1
-            self.bler_ul * 10.0
-        ], dtype=np.float32)
-
+# RICState is now imported from ric_state.py for multiprocessing support
 
 @dataclass
 class RICAction:

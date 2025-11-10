@@ -147,16 +147,37 @@ jobs:
 
       - name: Run pytest (if tests exist)
         run: |
-          if find 03-Implementation -name "test_*.py" -o -name "*_test.py" | grep -q .; then
-            pytest 03-Implementation/ \
+          if find 03-Implementation tests -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            pytest 03-Implementation/ tests/ \
               --cov=03-Implementation \
               --cov-report=xml \
               --cov-report=term-missing \
-              -v || echo "Some tests failed"
+              --cov-report=html \
+              --cov-fail-under=20 \
+              -v
           else
             echo "No test files found, skipping pytest"
           fi
-        continue-on-error: true
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage.xml
+            htmlcov/
+          retention-days: 30
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: |
+            .pytest_cache/
+            *.xml
+          retention-days: 7
 
   # ==========================================================================
   # Job 3: PQC Cryptography Validation
@@ -333,8 +354,9 @@ jobs:
             cd 04-Deployment/infrastructure
             terraform init -backend=false
             terraform validate
+          else
+            echo "No Terraform infrastructure directory found, skipping"
           fi
-        continue-on-error: true
 
 # ============================================================================
 # End of GitHub Actions Workflow

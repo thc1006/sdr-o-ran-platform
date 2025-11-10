@@ -18,7 +18,7 @@ Requirements Satisfied:
 - NFR-SEC-001: Authentication & Authorization
 """
 
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Body
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -28,14 +28,25 @@ from passlib.context import CryptContext
 import uvicorn
 import asyncio
 import logging
+import os
+import secrets
 
 # =============================================================================
 # Configuration
 # =============================================================================
 
-SECRET_KEY = "your-secret-key-change-in-production"  # 🔴 TODO: Load from K8s Secret
+# Security: Load SECRET_KEY from environment variable or K8s Secret
+# Generate a secure random key if not set (for development only)
+SECRET_KEY = os.environ.get("SDR_API_SECRET_KEY")
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_urlsafe(32)
+    logging.warning(
+        "SECRET_KEY not set in environment. Using generated key for this session. "
+        "Set SDR_API_SECRET_KEY environment variable for production."
+    )
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
 # Simulated USRP Device Pool
 USRP_DEVICES = {
@@ -73,15 +84,37 @@ class UserInDB(User):
 
 class StationConfig(BaseModel):
     """SDR Station Configuration Model (FR-SDR-001, FR-SDR-002)"""
-    station_id: str = Field(..., description="Unique station identifier")
-    usrp_device: str = Field(..., description="USRP device ID")
-    frequency_band: str = Field(..., description="C, Ku, or Ka", regex="^(C|Ku|Ka)$")
+    station_id: str = Field(
+        ...,
+        description="Unique station identifier",
+        pattern="^[a-zA-Z0-9_-]{1,64}$",
+        min_length=1,
+        max_length=64
+    )
+    usrp_device: str = Field(
+        ...,
+        description="USRP device ID",
+        pattern="^usrp-[0-9]{3}$"
+    )
+    frequency_band: str = Field(
+        ...,
+        description="C, Ku, or Ka",
+        pattern="^(C|Ku|Ka)$"
+    )
     center_frequency_ghz: float = Field(..., ge=1.0, le=40.0)
     sample_rate_msps: float = Field(..., ge=1.0, le=200.0)
     antenna_config: Dict[str, Any] = Field(..., description="Antenna parameters")
-    modulation_scheme: str = Field("QPSK", description="QPSK, 8PSK, 16APSK, 32APSK")
+    modulation_scheme: str = Field(
+        "QPSK",
+        description="QPSK, 8PSK, 16APSK, 32APSK",
+        pattern="^(QPSK|8PSK|16APSK|32APSK)$"
+    )
     oran_integration: bool = Field(False, description="Enable O-RAN data plane")
-    oran_endpoint: Optional[str] = Field(None, description="gRPC endpoint for O-RAN DU")
+    oran_endpoint: Optional[str] = Field(
+        None,
+        description="gRPC endpoint for O-RAN DU",
+        pattern="^[a-zA-Z0-9.-]+:[0-9]{1,5}$"
+    )
 
 
 class StationStatus(BaseModel):
@@ -111,13 +144,24 @@ class MetricsResponse(BaseModel):
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Fake user database (🔴 TODO: Replace with real user management)
+# User database initialization
+# Security: Load admin credentials from environment variables
+# Default demo credentials are used ONLY if environment variables are not set
+ADMIN_USERNAME = os.environ.get("SDR_ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("SDR_ADMIN_PASSWORD", "secret")
+ADMIN_EMAIL = os.environ.get("SDR_ADMIN_EMAIL", "admin@example.com")
+
+if ADMIN_PASSWORD == "secret":
+    logging.warning(
+        "Using default demo password. Set SDR_ADMIN_PASSWORD environment variable for production."
+    )
+
 fake_users_db = {
-    "admin": {
-        "username": "admin",
+    ADMIN_USERNAME: {
+        "username": ADMIN_USERNAME,
         "full_name": "SDR Administrator",
-        "email": "admin@example.com",
-        "hashed_password": pwd_context.hash("secret"),  # 🔴 Change in production
+        "email": ADMIN_EMAIL,
+        "hashed_password": pwd_context.hash(ADMIN_PASSWORD),
         "disabled": False,
     }
 }
@@ -315,7 +359,7 @@ async def get_station_status(
 @app.put("/api/v1/sdr/stations/{station_id}/frequency", tags=["Stations"])
 async def update_frequency(
     station_id: str,
-    center_frequency_ghz: float = Field(..., ge=1.0, le=40.0),
+    center_frequency_ghz: float = Body(..., ge=1.0, le=40.0, embed=True),
     current_user: User = Depends(get_current_active_user)
 ):
     """

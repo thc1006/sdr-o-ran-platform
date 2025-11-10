@@ -1,0 +1,36 @@
+# Grafana Helm Values
+# Minimal configuration for development
+# REQ-INFRA-006: Grafana for visualization
+
+# Admin credentials
+adminUser: admin
+adminPassword: admin  # Change in production
+
+# Resources
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi
+
+# Persistence disabled for development
+persistence:
+  enabled: false
+
+# Service type
+service:
+  type: NodePort
+  nodePort: 30300
+
+# Datasources - preconfigure Prometheus
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server.monitoring.svc.cluster.local
+        access: proxy
+        isDefault: true

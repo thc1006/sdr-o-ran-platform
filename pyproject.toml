@@ -1,0 +1,171 @@
+# SDR-O-RAN Platform - Python Project Configuration
+# PEP 518 compliant pyproject.toml
+# Author: thc1006@ieee.org
+
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools-scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sdr-oran-platform"
+version = "3.0.0"
+description = "SDR-O-RAN Platform for Non-Terrestrial Networks"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Hsiu-Chi Tsai", email = "thc1006@ieee.org"}
+]
+keywords = ["sdr", "oran", "5g", "ntn", "satellite", "post-quantum"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Telecommunications Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Communications :: Telephony",
+]
+
+# ============================================================================
+# Tool Configurations
+# ============================================================================
+
+[tool.pytest.ini_options]
+# Pytest Configuration
+minversion = "7.0"
+testpaths = ["tests", "03-Implementation"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Output options
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+]
+
+# Coverage options (when using pytest --cov)
+# Note: Most coverage config is in .coveragerc
+
+# Markers for test organization
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "infrastructure: marks infrastructure tests",
+]
+
+# Ignore warnings
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+# Coverage.py configuration (alternative to .coveragerc)
+# If .coveragerc exists, it takes precedence
+source = ["03-Implementation"]
+omit = ["*/tests/*", "*/test_*.py"]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.black]
+# Black - The uncompromising code formatter
+line-length = 100
+target-version = ["py311"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # Directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | venv
+  | env
+  | __pycache__
+)/
+'''
+
+[tool.isort]
+# isort - Import sorting
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_glob = ["*/venv/*", "*/env/*", "*/__pycache__/*"]
+
+# Section ordering
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+known_first_party = ["sdr_platform", "oran", "quantum_safe_crypto"]
+
+[tool.pylint.main]
+# Pylint - Python linter
+# Minimal configuration, most rules use defaults
+
+# Files to analyze
+recursive = true
+ignore-paths = [
+    "^.*/venv/.*$",
+    "^.*/env/.*$",
+    "^.*/__pycache__/.*$",
+]
+
+[tool.pylint.messages_control]
+# Disable specific pylint messages
+disable = [
+    "C0111",  # missing-docstring (too strict for prototypes)
+    "C0103",  # invalid-name (allow short var names)
+    "R0913",  # too-many-arguments (common in configs)
+    "R0914",  # too-many-locals (common in complex functions)
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.basic]
+good-names = ["i", "j", "k", "ex", "pk", "sk", "id", "db"]
+
+[tool.bandit]
+# Bandit - Security linter
+exclude_dirs = [
+    "/tests/",
+    "/test/",
+    "/venv/",
+    "/env/",
+]
+skips = [
+    "B101",  # assert_used (asserts are ok in tests)
+    "B601",  # paramiko_calls (not using paramiko)
+]
+
+[tool.mypy]
+# MyPy - Static type checker (optional, not enforced yet)
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Gradually enable
+ignore_missing_imports = true
