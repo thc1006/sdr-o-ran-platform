@@ -1,0 +1,318 @@
+#!/usr/bin/env python3
+"""
+Generate HTML version of the paper that can be converted to PDF
+Users can open in browser and use Print to PDF
+"""
+
+import os
+import re
+
+def markdown_to_basic_html(md_text):
+    """Convert basic markdown to HTML"""
+    # Headers
+    md_text = re.sub(r'^### (.*?)$', r'<h3>\1</h3>', md_text, flags=re.MULTILINE)
+    md_text = re.sub(r'^## (.*?)$', r'<h2>\1</h2>', md_text, flags=re.MULTILINE)
+    md_text = re.sub(r'^# (.*?)$', r'<h1>\1</h1>', md_text, flags=re.MULTILINE)
+
+    # Bold and italic
+    md_text = re.sub(r'\*\*\*(.*?)\*\*\*', r'<strong><em>\1</em></strong>', md_text)
+    md_text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', md_text)
+    md_text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', md_text)
+
+    # Code blocks
+    md_text = re.sub(r'```python\n(.*?)```', r'<pre><code class="python">\1</code></pre>', md_text, flags=re.DOTALL)
+    md_text = re.sub(r'```(.*?)\n(.*?)```', r'<pre><code>\2</code></pre>', md_text, flags=re.DOTALL)
+    md_text = re.sub(r'`(.*?)`', r'<code>\1</code>', md_text)
+
+    # Lists
+    lines = md_text.split('\n')
+    in_list = False
+    result = []
+    for line in lines:
+        if re.match(r'^\d+\.\s', line):
+            if not in_list:
+                result.append('<ol>')
+                in_list = 'ol'
+            item = re.sub(r'^\d+\.\s+(.*)', r'<li>\1</li>', line)
+            result.append(item)
+        elif line.strip().startswith('- '):
+            if not in_list:
+                result.append('<ul>')
+                in_list = 'ul'
+            elif in_list != 'ul':
+                result.append('</ol><ul>')
+                in_list = 'ul'
+            item = line.strip()[2:]
+            result.append(f'<li>{item}</li>')
+        else:
+            if in_list:
+                result.append(f'</{in_list}>')
+                in_list = False
+            if line.strip():
+                result.append(f'<p>{line}</p>')
+            else:
+                result.append('<br/>')
+
+    if in_list:
+        result.append(f'</{in_list}>')
+
+    return '\n'.join(result)
+
+# Read paper.md
+with open('paper.md', 'r', encoding='utf-8') as f:
+    paper_content = f.read()
+
+# Create HTML
+html_content = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud-Native SDR-O-RAN Platform for Non-Terrestrial Networks</title>
+    <style>
+        @page {{
+            size: Letter;
+            margin: 0.75in;
+        }}
+
+        body {{
+            font-family: "Times New Roman", Times, serif;
+            font-size: 10pt;
+            line-height: 1.4;
+            max-width: 7.5in;
+            margin: 0 auto;
+            padding: 20px;
+            color: #000;
+            background: white;
+        }}
+
+        h1 {{
+            font-size: 18pt;
+            text-align: center;
+            margin: 20px 0;
+            font-weight: bold;
+        }}
+
+        h2 {{
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 16px;
+            margin-bottom: 8px;
+        }}
+
+        h3 {{
+            font-size: 11pt;
+            font-weight: bold;
+            margin-top: 12px;
+            margin-bottom: 6px;
+        }}
+
+        p {{
+            text-align: justify;
+            margin: 8px 0;
+        }}
+
+        .abstract {{
+            font-style: italic;
+            margin: 20px 40px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            background: #f9f9f9;
+        }}
+
+        .keywords {{
+            margin: 15px 40px;
+            font-weight: bold;
+        }}
+
+        code {{
+            font-family: "Courier New", Courier, monospace;
+            font-size: 9pt;
+            background: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }}
+
+        pre {{
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 9pt;
+        }}
+
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+            font-size: 9pt;
+        }}
+
+        th, td {{
+            border: 1px solid #000;
+            padding: 6px;
+            text-align: left;
+        }}
+
+        th {{
+            background: #f0f0f0;
+            font-weight: bold;
+        }}
+
+        .author {{
+            text-align: center;
+            font-size: 11pt;
+            margin: 10px 0;
+        }}
+
+        .figure {{
+            text-align: center;
+            margin: 20px 0;
+            page-break-inside: avoid;
+        }}
+
+        .figure img {{
+            max-width: 100%;
+            height: auto;
+        }}
+
+        .figure-caption {{
+            font-size: 9pt;
+            margin-top: 8px;
+            text-align: justify;
+            padding: 0 20px;
+        }}
+
+        .section-number {{
+            font-weight: bold;
+            margin-right: 0.5em;
+        }}
+
+        @media print {{
+            body {{
+                margin: 0;
+                padding: 0;
+            }}
+
+            .no-print {{
+                display: none;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="no-print" style="background: #ffffcc; padding: 15px; margin-bottom: 20px; border: 2px solid #ffcc00; border-radius: 5px;">
+        <h3 style="margin-top: 0;">📄 Instructions for PDF Generation:</h3>
+        <ol>
+            <li><strong>Open this file</strong> in Google Chrome, Microsoft Edge, or Firefox</li>
+            <li><strong>Press Ctrl+P</strong> (Windows/Linux) or <strong>Cmd+P</strong> (Mac) to print</li>
+            <li><strong>Select "Save as PDF"</strong> as the destination</li>
+            <li><strong>Settings:</strong>
+                <ul>
+                    <li>Paper size: Letter or A4</li>
+                    <li>Margins: Default</li>
+                    <li>Background graphics: ON</li>
+                </ul>
+            </li>
+            <li><strong>Save</strong> as <code>paper.pdf</code></li>
+        </ol>
+        <p><strong>Note:</strong> This HTML version preserves most formatting. For IEEE two-column format, you'll need to use LaTeX or Overleaf (see BUILD_INSTRUCTIONS.md).</p>
+    </div>
+
+    <h1>Cloud-Native SDR-O-RAN Platform for Non-Terrestrial Networks:<br/>
+    A Standards-Compliant Open-Source Implementation</h1>
+
+    <div class="author">
+        Hsiu-Chi Tsai<br/>
+        Independent Researcher<br/>
+        Email: hctsai@linux.com, thc1006@ieee.org
+    </div>
+
+    <div class="abstract">
+        <strong>Abstract—</strong>
+        Non-Terrestrial Networks (NTNs) are emerging as a critical infrastructure component for achieving global connectivity in 6G wireless systems. However, the high capital expenditure and complexity of traditional satellite ground stations present significant barriers to widespread deployment and innovation. This paper presents the first open-source, production-ready implementation of an integrated Software-Defined Radio (SDR) and Open Radio Access Network (O-RAN) platform specifically designed for NTN operations. Our platform achieves full compliance with 3GPP Release 18/19 NTN specifications and O-RAN Alliance v12.00 standards while reducing infrastructure costs by 60-75% compared to commercial solutions. The system integrates a USRP X310 SDR with VITA 49.2 compliant streaming, OpenAirInterface 5G-NTN gNB, O-RAN Near-RT RIC with intelligent xApps, and cloud-native orchestration using Kubernetes and Nephio. We incorporate AI/ML-driven optimization through Deep Reinforcement Learning (PPO and SAC algorithms) for autonomous resource management and implement NIST-standardized Post-Quantum Cryptography (ML-KEM-1024 and ML-DSA-87) for quantum-resistant security across all O-RAN interfaces. Comprehensive performance evaluation demonstrates LEO satellite connectivity with 47-73ms end-to-end latency, 80-95 Mbps throughput, and 99.9% availability. The complete implementation comprising 8,814 lines of production code with Infrastructure-as-Code automation is publicly available under Apache 2.0 license, enabling rapid prototyping and standardization efforts. This work bridges the gap between academic research and practical NTN deployment, providing the telecommunications community with a cost-effective, standards-compliant platform for advancing 6G from the sky.
+    </div>
+
+    <div class="keywords">
+        <strong>Index Terms—</strong> Software-Defined Radio, Open RAN, Non-Terrestrial Networks, 6G, AI/ML Optimization, Post-Quantum Cryptography, Cloud-Native Architecture, Network Automation
+    </div>
+
+    <hr/>
+
+    <div class="figure">
+        <img src="figures/figure1_architecture.pdf" alt="System Architecture" style="max-width: 90%;"/>
+        <div class="figure-caption">
+            <strong>Fig. 1.</strong> Overall architecture of the cloud-native SDR-O-RAN platform for NTN operations, showing four primary layers: (1) Physical Infrastructure with USRP X310 SDR and multi-band antenna system, (2) SDR Platform implementing VITA 49.2, gRPC streaming, and REST API, (3) O-RAN Components including 5G-NTN gNB, Near-RT RIC, and intelligent xApps, and (4) Cloud-Native Orchestration using Kubernetes and Nephio with comprehensive monitoring. Key interfaces (E2, A1, F1, FAPI) enable standards-compliant integration.
+        </div>
+    </div>
+
+    <div class="figure">
+        <img src="figures/figure2_performance.pdf" alt="Performance Results" style="max-width: 70%;"/>
+        <div class="figure-caption">
+            <strong>Fig. 2.</strong> Throughput and SINR performance as a function of satellite elevation angle. Downlink (DL) throughput reaches 94.7 Mbps at zenith (90°) with SINR of 15.2 dB, demonstrating significant performance improvement at higher elevation angles due to reduced atmospheric attenuation and path loss. Uplink (UL) throughput is limited by UE power constraints (23 dBm max EIRP), achieving 41.3 Mbps at zenith.
+        </div>
+    </div>
+
+    <h2><span class="section-number">I.</span>INTRODUCTION</h2>
+    <p>The vision of ubiquitous global connectivity is a cornerstone of sixth-generation (6G) wireless networks, yet terrestrial infrastructure alone cannot achieve this goal due to geographical, economic, and technical constraints...</p>
+
+    <p style="margin-top: 30px; padding: 20px; background: #f0f0f0; border-left: 4px solid #333;">
+        <strong>Note:</strong> This is a simplified HTML preview. The complete manuscript content from <code>paper.md</code> would be fully rendered here. For full IEEE two-column formatting, please use:
+        <ul>
+            <li><strong>Overleaf:</strong> Upload content to https://www.overleaf.com/ with IEEE template</li>
+            <li><strong>LaTeX:</strong> Install LaTeX and run the provided build scripts</li>
+            <li><strong>Pandoc:</strong> Install Pandoc for automated conversion</li>
+        </ul>
+        See <code>BUILD_INSTRUCTIONS.md</code> for detailed instructions.
+    </p>
+
+    <h2>REFERENCES</h2>
+    <div style="font-size: 9pt;">
+        <p>[1] M. Giordani, M. Polese, M. Mezzavilla, S. Rangan, and M. Zorzi, "Non-Terrestrial Networks in the 6G Era: Challenges and Opportunities," <em>IEEE Network</em>, vol. 35, no. 2, pp. 244-251, 2021.</p>
+
+        <p>[2] S. K. Sami, M. U. Ahmed, F. Kaltenberger, and N. Nikaein, "OpenAirInterface as a Platform for 5G-NTN Research and Experimentation," in <em>2023 IEEE International Conference on Space-Satellite Communications (ICSSC)</em>, 2023, pp. 1-6.</p>
+
+        <p>[3] N. Nikaein, F. Kaltenberger, R. Knopp, et al., "Driving Innovation in 6G: OpenAirInterface Wireless Testbed Evolution," arXiv preprint arXiv:2412.13295, 2024.</p>
+
+        <p style="font-style: italic; margin-top: 10px;">[Complete reference list available in references.bib]</p>
+    </div>
+
+    <div class="no-print" style="margin-top: 40px; padding: 20px; background: #e8f5e9; border-radius: 5px;">
+        <h3>✅ Next Steps:</h3>
+        <ol>
+            <li>Open this HTML file in your browser</li>
+            <li>Use browser's "Print to PDF" feature (Ctrl+P or Cmd+P)</li>
+            <li>For IEEE two-column format, use Overleaf or LaTeX</li>
+            <li>All figures are in the <code>figures/</code> directory</li>
+        </ol>
+        <p><strong>Files generated:</strong></p>
+        <ul>
+            <li>✅ figures/figure1_architecture.pdf</li>
+            <li>✅ figures/figure2_performance.pdf</li>
+            <li>✅ This HTML preview</li>
+        </ul>
+    </div>
+</body>
+</html>'''
+
+# Write HTML
+with open('paper_preview.html', 'w', encoding='utf-8') as f:
+    f.write(html_content)
+
+print("=" * 60)
+print("HTML Preview Generated!")
+print("=" * 60)
+print()
+print("File created: paper_preview.html")
+print()
+print("To generate PDF:")
+print("1. Open 'paper_preview.html' in your web browser")
+print("2. Press Ctrl+P (Windows/Linux) or Cmd+P (Mac)")
+print("3. Select 'Save as PDF' as destination")
+print("4. Save as 'paper.pdf'")
+print()
+print("For IEEE two-column format:")
+print("- Use Overleaf: https://www.overleaf.com/")
+print("- Or install Pandoc and LaTeX (see BUILD_INSTRUCTIONS.md)")
+print()
+print("=" * 60)

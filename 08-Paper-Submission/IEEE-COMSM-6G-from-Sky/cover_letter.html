@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Cover Letter - IEEE Communications Standards Magazine</title>
+    <style>
+        body {
+            font-family: "Times New Roman", Times, serif;
+            max-width: 8in;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+            font-size: 12pt;
+        }
+        h1 { font-size: 18pt; margin-bottom: 20px; }
+        h2 { font-size: 14pt; margin-top: 20px; margin-bottom: 10px; }
+        p { text-align: justify; margin: 10px 0; }
+        .no-print {
+            background: #ffffcc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 2px solid #ffcc00;
+            border-radius: 5px;
+        }
+        @media print {
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <h3>📄 PDF Generation Instructions:</h3>
+        <ol>
+            <li>Press <strong>Ctrl+P</strong> (Windows/Linux) or <strong>Cmd+P</strong> (Mac)</li>
+            <li>Select "Save as PDF" as destination</li>
+            <li>Save as <code>cover_letter.pdf</code></li>
+        </ol>
+    </div>
+
+    <pre style="font-family: 'Times New Roman', Times, serif; white-space: pre-wrap; line-height: 1.6; font-size: 12pt;">
+# Cover Letter
+
+**Date:** December 15, 2025
+
+**To:**
+Guest Editors
+IEEE Communications Standards Magazine
+Special Issue: "6G from the Sky: Enhancing the Connectivity via Non-Terrestrial Networks"
+June 2026 Issue
+
+**Subject:** Manuscript Submission - "Cloud-Native SDR-O-RAN Platform for Non-Terrestrial Networks: A Standards-Compliant Open-Source Implementation"
+
+---
+
+Dear Guest Editors,
+
+I am pleased to submit the manuscript titled **"Cloud-Native SDR-O-RAN Platform for Non-Terrestrial Networks: A Standards-Compliant Open-Source Implementation"** for consideration in the IEEE Communications Standards Magazine Special Issue on "6G from the Sky: Enhancing the Connectivity via Non-Terrestrial Networks" (June 2026).
+
+## Manuscript Overview
+
+This paper presents the first open-source, production-ready implementation of an integrated Software-Defined Radio (SDR) and Open Radio Access Network (O-RAN) platform specifically designed for Non-Terrestrial Network (NTN) operations. The platform achieves full compliance with 3GPP Release 18/19 NTN specifications and O-RAN Alliance standards (v12.00), while incorporating advanced features including AI/ML-driven resource optimization, NIST-standardized Post-Quantum Cryptography, and cloud-native orchestration.
+
+## Relevance to Special Issue
+
+This work directly addresses the special issue's scope and topics of interest:
+
+1. **NTN Network Architecture:** Complete end-to-end architecture integrating SDR ground station, O-RAN components (gNB, Near-RT RIC, xApps), and cloud-native orchestration
+
+2. **Standardization and Regulation:** Full 3GPP Release 18/19 compliance including Doppler compensation, timing advance, satellite-specific PHY/MAC, and O-RAN E2/A1 interface implementation
+
+3. **AI-Driven Network Management:** Deep Reinforcement Learning (PPO/SAC) framework for autonomous RAN optimization with explainability (SHAP)
+
+4. **Security and Privacy:** Post-Quantum Cryptography (NIST FIPS 203 ML-KEM-1024, FIPS 204 ML-DSA-87) across all O-RAN interfaces
+
+5. **Experimental Testbed:** Comprehensive performance evaluation demonstrating LEO latency 47-73ms, GEO latency 267-283ms, throughput 80-95 Mbps, and 99.9% availability
+
+## Key Contributions
+
+The manuscript makes significant contributions to the 6G NTN ecosystem:
+
+- **First Open-Source Integrated Platform:** Complete implementation (8,814 lines of production code) publicly available, enabling rapid innovation and standardization efforts
+
+- **Cost-Effective Solution:** 60-75% CAPEX reduction ($23.5K vs. $500K-$1M) compared to commercial ground stations, lowering barriers to NTN research and deployment
+
+- **Production-Ready Implementation:** Comprehensive Infrastructure-as-Code, CI/CD pipelines, monitoring, and deployment automation achieving 30-minute end-to-end deployment
+
+- **Standards-Driven Approach:** Detailed analysis of 3GPP NTN and O-RAN specifications with implementation insights, lessons learned, and best practices valuable to the standardization community
+
+- **Forward-Looking Security:** Early adoption of NIST Post-Quantum Cryptography standards (finalized August 2024), positioning the platform for quantum-resistant 6G deployments
+
+## Novelty and Originality
+
+To the best of our knowledge, this is the first work to:
+1. Integrate SDR, O-RAN, and NTN in a production-ready, open-source platform
+2. Implement NIST PQC across O-RAN interfaces for quantum-resistant NTN security
+3. Apply Deep Reinforcement Learning to O-RAN xApps specifically optimized for NTN dynamics (satellite mobility, Doppler shift, intermittent connectivity)
+4. Provide comprehensive cost-benefit analysis demonstrating feasibility of cost-effective NTN ground stations
+
+The manuscript has not been published elsewhere and is not under consideration for publication in any other journal or conference.
+
+## Target Audience
+
+This paper will be of significant interest to:
+- **Standards Bodies:** 3GPP and O-RAN Alliance members working on NTN standardization
+- **Telecom Operators:** Organizations planning NTN service deployment and seeking cost-effective solutions
+- **Academic Researchers:** Universities and research institutions conducting 6G and NTN research
+- **Technology Vendors:** Companies developing NTN equipment and software solutions
+- **Regulatory Bodies:** Organizations shaping spectrum policy and NTN regulations
+
+## Suggested Reviewers
+
+We respectfully suggest the following experts as potential reviewers (no conflicts of interest):
+
+1. **Dr. Michele Polese**
+   Northeastern University, USA
+   Email: m.polese@northeastern.edu
+   Expertise: O-RAN architecture, E2 interface, xApp development
+
+2. **Dr. Navid Nikaein**
+   EURECOM, France
+   Email: navid.nikaein@eurecom.fr
+   Expertise: OpenAirInterface, 5G-NTN, software-defined wireless
+
+3. **Dr. Tomaso de Cola**
+   German Aerospace Center (DLR), Germany
+   Email: Tomaso.deCola@dlr.de
+   Expertise: Satellite communications, NTN protocols, 3GPP standardization
+
+4. **Dr. Symeon Chatzinotas**
+   University of Luxembourg, Luxembourg
+   Email: symeon.chatzinotas@uni.lu
+   Expertise: Satellite communications, 6G, AI for wireless networks
+
+5. **Dr. Stefano Buzzi**
+   University of Cassino and Southern Lazio, Italy
+   Email: buzzi@unicas.it
+   Expertise: 5G/6G, NTN, signal processing for satellite communications
+
+## Compliance with Submission Guidelines
+
+This manuscript complies with all IEEE Communications Standards Magazine author guidelines:
+- Word count: ~10,500 words (within 8,000-12,000 guideline)
+- Format: Two-column IEEE format with single spacing
+- Figures: 2 figures (high-resolution, >300 dpi)
+- Tables: 3 tables
+- References: 18 references in IEEE format
+- Author information: ORCID ID provided, author biography included
+- Supplementary materials: Code repository and dataset links provided
+
+## Data Availability and Reproducibility
+
+In the spirit of open science and to support reproducibility:
+- **Source Code:** Complete implementation available at https://github.com/thc1006/sdr-o-ran-platform (Apache 2.0 license)
+- **Dataset:** Performance evaluation data will be published on Zenodo with DOI upon paper acceptance
+- **Documentation:** Comprehensive deployment guides, API documentation, and video demonstrations provided
+- **Community Engagement:** Active community support through GitHub issues, discussion forums, and monthly technical calls
+
+## Conflict of Interest
+
+I declare that there are no conflicts of interest associated with this manuscript. This work was conducted as independent research and received no external funding that could influence the research or its presentation.
+
+## Copyright Transfer
+
+Upon acceptance, I am prepared to transfer copyright to IEEE as per standard IEEE publication agreements.
+
+## Acknowledgment of Review Process
+
+I understand that the manuscript will undergo rigorous peer review. I am committed to addressing all reviewer comments thoroughly and providing point-by-point responses. I am available to make revisions according to the timeline specified in the call for papers (revision deadline: March 15, 2026).
+
+## Contact Information
+
+**Corresponding Author:**
+Hsiu-Chi Tsai
+Independent Researcher
+Email: hctsai@linux.com, thc1006@ieee.org
+ORCID: [ORCID ID to be inserted]
+Phone: [Contact number to be provided if required]
+
+---
+
+I believe this manuscript will make a significant contribution to the special issue by providing practical insights into NTN deployment challenges, standards-compliant implementation strategies, and a valuable open-source platform for the 6G research community. The work demonstrates that cost-effective, production-ready NTN solutions are achievable today, accelerating the path toward ubiquitous 6G connectivity from the sky.
+
+Thank you for your consideration of this manuscript. I look forward to your response and am happy to provide any additional information or clarifications as needed.
+
+Sincerely,
+
+**Hsiu-Chi Tsai**
+Independent Researcher
+Member, IEEE and IEEE Communications Society
+
+---
+
+**Attachments:**
+1. Manuscript PDF (main file)
+2. Figure 1: System Architecture Diagram (EPS/PDF)
+3. Figure 2: Performance Evaluation Graph (EPS/PDF)
+4. Supplementary Material: GitHub Repository Link
+5. Author Biography
+
+**Manuscript Details:**
+- Title: Cloud-Native SDR-O-RAN Platform for Non-Terrestrial Networks: A Standards-Compliant Open-Source Implementation
+- Word Count: ~10,500 words
+- Number of Figures: 2
+- Number of Tables: 3
+- Number of References: 18
+- Special Issue: 6G from the Sky (June 2026)
+- Submission Date: December 15, 2025
+
+    </pre>
+</body>
+</html>

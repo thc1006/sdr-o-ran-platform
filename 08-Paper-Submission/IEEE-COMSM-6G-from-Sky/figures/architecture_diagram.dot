@@ -1,0 +1,170 @@
+// Figure 1: Overall System Architecture - Cloud-Native SDR-O-RAN Platform for NTN
+// Graphviz DOT format for generating architecture diagram
+//
+// To generate:
+//   dot -Tpdf architecture_diagram.dot -o figure1_architecture.pdf
+//   dot -Teps architecture_diagram.dot -o figure1_architecture.eps
+//   dot -Tpng architecture_diagram.dot -o figure1_architecture.png -Gdpi=300
+//
+// Requirements: Graphviz (https://graphviz.org/)
+
+digraph SDR_ORAN_NTN_Architecture {
+    // Graph settings for publication quality
+    graph [
+        rankdir=BT,
+        bgcolor="white",
+        compound=true,
+        fontname="Arial",
+        fontsize=10,
+        pad=0.3,
+        nodesep=0.5,
+        ranksep=0.8,
+        splines=ortho
+    ]
+
+    node [
+        shape=box,
+        style="rounded,filled",
+        fontname="Arial",
+        fontsize=9,
+        height=0.4,
+        width=1.2
+    ]
+
+    edge [
+        fontname="Arial",
+        fontsize=8,
+        arrowsize=0.7
+    ]
+
+    // ============================================================
+    // LAYER 1: PHYSICAL INFRASTRUCTURE (Bottom)
+    // ============================================================
+    subgraph cluster_physical {
+        label="Layer 1: Physical Infrastructure";
+        style=filled;
+        fillcolor="#E3F2FD";
+        color="#1976D2";
+        fontsize=11;
+        fontname="Arial Bold";
+
+        // Hardware components
+        usrp [label="USRP X310\n+ GPSDO", fillcolor="#BBDEFB"];
+        antenna [label="Multi-band\nAntenna\n(C/Ku/Ka)", fillcolor="#BBDEFB"];
+        servers [label="3× Compute\nServers\n(32 cores each)", fillcolor="#BBDEFB"];
+        network [label="10 GbE\nNetworking", fillcolor="#BBDEFB"];
+
+        // Connections within physical layer
+        usrp -> network [label="IQ Samples"];
+        antenna -> usrp [label="RF"];
+        network -> servers [label="Data"];
+    }
+
+    // ============================================================
+    // LAYER 2: SDR PLATFORM
+    // ============================================================
+    subgraph cluster_sdr {
+        label="Layer 2: SDR Platform";
+        style=filled;
+        fillcolor="#E8F5E9";
+        color="#388E3C";
+        fontsize=11;
+        fontname="Arial Bold";
+
+        // SDR components
+        vrt [label="VITA 49.2\nVRT Receiver", fillcolor="#C8E6C9"];
+        grpc [label="gRPC Bidirectional\nStreaming Server", fillcolor="#C8E6C9"];
+        rest [label="FastAPI\nREST Gateway", fillcolor="#C8E6C9"];
+
+        // Connections within SDR layer
+        vrt -> grpc [label="Streaming"];
+        grpc -> rest [label="API"];
+    }
+
+    // ============================================================
+    // LAYER 3: O-RAN COMPONENTS
+    // ============================================================
+    subgraph cluster_oran {
+        label="Layer 3: O-RAN Components";
+        style=filled;
+        fillcolor="#FFF3E0";
+        color="#F57C00";
+        fontsize=11;
+        fontname="Arial Bold";
+
+        // O-RAN components
+        gnb [label="OpenAirInterface\n5G-NTN gNB\n(DU + CU)", fillcolor="#FFE0B2"];
+        ric [label="Near-RT RIC\nPlatform", fillcolor="#FFE0B2"];
+        xapps [label="Intelligent xApps\n(Traffic Steering,\nQoS Optimization)", fillcolor="#FFE0B2"];
+
+        // O-RAN interfaces
+        gnb -> ric [label="E2", color="#F57C00", style=bold];
+        ric -> xapps [label="xApp SDK", color="#F57C00"];
+        ric -> gnb [label="E2 Control", color="#F57C00", style=dashed];
+    }
+
+    // ============================================================
+    // LAYER 4: CLOUD-NATIVE ORCHESTRATION (Top)
+    // ============================================================
+    subgraph cluster_cloud {
+        label="Layer 4: Cloud-Native Orchestration";
+        style=filled;
+        fillcolor="#F3E5F5";
+        color="#7B1FA2";
+        fontsize=11;
+        fontname="Arial Bold";
+
+        // Cloud components
+        k8s [label="Kubernetes\nCluster", fillcolor="#E1BEE7"];
+        nephio [label="Nephio Network\nAutomation", fillcolor="#E1BEE7"];
+        monitoring [label="Prometheus +\nGrafana", fillcolor="#E1BEE7"];
+
+        // Cloud orchestration
+        nephio -> k8s [label="Orchestration"];
+        k8s -> monitoring [label="Metrics"];
+    }
+
+    // ============================================================
+    // INTER-LAYER CONNECTIONS
+    // ============================================================
+
+    // Physical to SDR
+    network -> vrt [label="IQ Stream", lhead=cluster_sdr, ltail=cluster_physical];
+
+    // SDR to O-RAN
+    grpc -> gnb [label="Real-time IQ", lhead=cluster_oran, ltail=cluster_sdr];
+
+    // O-RAN to Cloud
+    gnb -> k8s [label="Deployment", lhead=cluster_cloud, ltail=cluster_oran, style=dashed];
+    ric -> k8s [label="Scaling", lhead=cluster_cloud, style=dashed];
+
+    // Cloud to O-RAN management
+    nephio -> ric [label="A1 Policy", ltail=cluster_cloud, color="#7B1FA2", style=bold];
+
+    // ============================================================
+    // EXTERNAL CONNECTIONS
+    // ============================================================
+
+    // Satellite connection (external)
+    satellite [label="LEO/MEO/GEO\nSatellite", shape=ellipse,
+               fillcolor="#FFECB3", style="filled,dashed", color="#FF6F00"];
+    satellite -> antenna [label="RF Link\n(C/Ku/Ka)", style=bold, color="#FF6F00"];
+
+    // Legend
+    subgraph cluster_legend {
+        label="Interface Legend";
+        style=filled;
+        fillcolor="white";
+        color="black";
+        fontsize=9;
+
+        leg1 [label="E2: Near-RT RIC Interface", shape=plaintext, fillcolor=white];
+        leg2 [label="A1: Non-RT RIC Policy", shape=plaintext, fillcolor=white];
+        leg3 [label="F1: CU-DU Interface", shape=plaintext, fillcolor=white];
+        leg4 [label="FAPI: PHY-MAC Interface", shape=plaintext, fillcolor=white];
+
+        leg1 -> leg2 [style=invis];
+        leg2 -> leg3 [style=invis];
+        leg3 -> leg4 [style=invis];
+    }
+}
