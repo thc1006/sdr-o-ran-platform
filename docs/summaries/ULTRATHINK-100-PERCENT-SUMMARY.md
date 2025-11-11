@@ -337,7 +337,7 @@ cd ../../../ai-ml-pipeline/training && python drl_trainer.py
 ### Medium-term (Month 3-12)
 
 7. **3GPP Rel-19 Integration** (regenerative payload, MBS, RedCap)
-8. **LLM-Augmented DRL** (GPT-4/Claude for contextual understanding)
+8. **LLM-Augmented DRL** (GPT-4 for contextual understanding)
 9. **Digital Twin** (OMNeT++ simulation environment)
 
 ### Long-term (Year 2+)

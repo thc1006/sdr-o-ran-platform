@@ -8,7 +8,8 @@ pydantic==2.5.0
 
 # Authentication & Security (NFR-SEC-001)
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+passlib[argon2]==1.7.4
+argon2-cffi==23.1.0
 python-multipart==0.0.6
 
 # Monitoring & Observability (NFR-INT-003)
@@ -31,3 +32,7 @@ protobuf==4.25.2
 # Utilities
 python-dateutil==2.8.2
 asyncio==3.4.3
+
+# ZMQ for LEO NTN integration (FR-INT-004)
+pyzmq==25.1.2
+numpy==1.24.3

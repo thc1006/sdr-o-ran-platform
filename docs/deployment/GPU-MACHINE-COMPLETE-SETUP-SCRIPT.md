@@ -6,7 +6,7 @@
 
 **日期**: 2025-11-10
 **作者**: 蔡秀吉 (Hsiu-Chi Tsai)
-**給**: Claude Code on GPU Machine
+**給**: Automated System on GPU Machine
 
 ---
 

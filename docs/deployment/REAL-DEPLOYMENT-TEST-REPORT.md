@@ -948,5 +948,5 @@ python3 traffic-steering-xapp.py
 
 **Report Version:** 1.0
 **Generated:** 2025-11-10 17:56 UTC
-**Report Author:** Claude Code (on behalf of thc1006@ieee.org)
+**Report Author:** Automated System (on behalf of thc1006@ieee.org)
 **Next Review Date:** After security fixes implemented

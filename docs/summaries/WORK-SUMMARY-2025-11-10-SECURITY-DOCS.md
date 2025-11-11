@@ -3,7 +3,7 @@
 Date: 2025-11-10
 Session: Security Hardening + Documentation Refresh
 Duration: ~2 hours
-Executor: Claude Code (on behalf of thc1006@ieee.org)
+Executor: Automated System (on behalf of thc1006@ieee.org)
 
 ---
 
@@ -659,7 +659,7 @@ Successfully completed all requested tasks:
 
 ---
 
-**Prepared by**: Claude Code
+**Prepared by**: Automated System
 **On behalf of**: 蔡秀吉 (Hsiu-Chi Tsai) - thc1006@ieee.org
 **Date**: 2025-11-10
 **Session Type**: Security + Documentation

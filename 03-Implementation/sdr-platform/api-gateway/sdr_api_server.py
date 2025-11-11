@@ -30,6 +30,12 @@ import asyncio
 import logging
 import os
 import secrets
+import zmq
+import zmq.asyncio
+import numpy as np
+import json
+import threading
+from collections import deque
 
 # =============================================================================
 # Configuration
@@ -57,6 +63,25 @@ USRP_DEVICES = {
 
 # Simulated Station Configurations
 STATIONS = {}
+
+# LEO NTN IQ Sample Integration (FR-INT-004)
+LEO_ZMQ_ENDPOINT = os.environ.get("LEO_ZMQ_ENDPOINT", "tcp://leo-ntn-simulator:5555")
+IQ_SAMPLE_STATS = {
+    "connected": False,
+    "frames_received": 0,
+    "last_frame_id": None,
+    "last_timestamp": None,
+    "last_sample_rate": None,
+    "last_num_samples": None,
+    "last_doppler_hz": None,
+    "last_delay_ms": None,
+    "last_fspl_db": None,
+    "total_samples_received": 0,
+    "average_snr_db": None,
+    "average_power_db": None,
+    "errors": 0,
+}
+IQ_SAMPLE_BUFFER = deque(maxlen=100)  # Keep last 100 frames in memory
 
 # =============================================================================
 # Data Models (Pydantic)
@@ -137,11 +162,29 @@ class MetricsResponse(BaseModel):
     timestamp: datetime
 
 
+class IQSampleStats(BaseModel):
+    """LEO NTN IQ Sample Statistics (FR-INT-004)"""
+    connected: bool
+    frames_received: int
+    last_frame_id: Optional[int] = None
+    last_timestamp: Optional[float] = None
+    last_sample_rate: Optional[float] = None
+    last_num_samples: Optional[int] = None
+    last_doppler_hz: Optional[float] = None
+    last_delay_ms: Optional[float] = None
+    last_fspl_db: Optional[float] = None
+    total_samples_received: int
+    average_snr_db: Optional[float] = None
+    average_power_db: Optional[float] = None
+    errors: int
+    zmq_endpoint: str
+
+
 # =============================================================================
 # Security (NFR-SEC-001)
 # =============================================================================
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # User database initialization
@@ -156,16 +199,6 @@ if ADMIN_PASSWORD == "secret":
         "Using default demo password. Set SDR_ADMIN_PASSWORD environment variable for production."
     )
 
-fake_users_db = {
-    ADMIN_USERNAME: {
-        "username": ADMIN_USERNAME,
-        "full_name": "SDR Administrator",
-        "email": ADMIN_EMAIL,
-        "hashed_password": pwd_context.hash(ADMIN_PASSWORD),
-        "disabled": False,
-    }
-}
-
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -173,6 +206,17 @@ def verify_password(plain_password, hashed_password):
 
 def get_password_hash(password):
     return pwd_context.hash(password)
+
+
+fake_users_db = {
+    ADMIN_USERNAME: {
+        "username": ADMIN_USERNAME,
+        "full_name": "SDR Administrator",
+        "email": ADMIN_EMAIL,
+        "hashed_password": get_password_hash(ADMIN_PASSWORD),
+        "disabled": False,
+    }
+}
 
 
 def get_user(db, username: str):
@@ -241,6 +285,90 @@ app = FastAPI(
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# LEO NTN ZMQ Integration (FR-INT-004)
+# =============================================================================
+
+async def zmq_iq_sample_receiver():
+    """Background task to receive IQ samples from LEO NTN Simulator via ZMQ"""
+    logger.info(f"🛰️  Starting ZMQ IQ sample receiver: {LEO_ZMQ_ENDPOINT}")
+
+    context = zmq.asyncio.Context()
+    socket = context.socket(zmq.SUB)
+    socket.setsockopt(zmq.SUBSCRIBE, b"")  # Subscribe to all messages
+
+    try:
+        socket.connect(LEO_ZMQ_ENDPOINT)
+        IQ_SAMPLE_STATS["connected"] = True
+        logger.info(f"✅ Connected to LEO NTN Simulator at {LEO_ZMQ_ENDPOINT}")
+
+        while True:
+            try:
+                # Receive multipart message: [metadata_json, iq_samples_bytes]
+                metadata_json = await socket.recv_string()
+                iq_samples_bytes = await socket.recv()
+
+                # Parse metadata
+                metadata = json.loads(metadata_json)
+
+                # Convert IQ samples from bytes to numpy array
+                iq_samples = np.frombuffer(iq_samples_bytes, dtype=np.complex64)
+
+                # Update statistics
+                IQ_SAMPLE_STATS["frames_received"] += 1
+                IQ_SAMPLE_STATS["last_frame_id"] = metadata["frame_id"]
+                IQ_SAMPLE_STATS["last_timestamp"] = metadata["timestamp"]
+                IQ_SAMPLE_STATS["last_sample_rate"] = metadata["sample_rate"]
+                IQ_SAMPLE_STATS["last_num_samples"] = metadata["num_samples"]
+                IQ_SAMPLE_STATS["last_doppler_hz"] = metadata["doppler_hz"]
+                IQ_SAMPLE_STATS["last_delay_ms"] = metadata["delay_ms"]
+                IQ_SAMPLE_STATS["last_fspl_db"] = metadata["fspl_db"]
+                IQ_SAMPLE_STATS["total_samples_received"] += len(iq_samples)
+
+                # Calculate signal statistics
+                power = np.mean(np.abs(iq_samples) ** 2)
+                power_db = 10 * np.log10(power + 1e-12)  # Avoid log(0)
+                IQ_SAMPLE_STATS["average_power_db"] = power_db
+
+                # Store in buffer (for potential future use)
+                IQ_SAMPLE_BUFFER.append({
+                    "metadata": metadata,
+                    "power_db": power_db,
+                    "num_samples": len(iq_samples),
+                })
+
+                # Log every 100 frames
+                if IQ_SAMPLE_STATS["frames_received"] % 100 == 0:
+                    logger.info(
+                        f"📊 Received {IQ_SAMPLE_STATS['frames_received']} frames | "
+                        f"Power: {power_db:.2f} dB | "
+                        f"Doppler: {metadata['doppler_hz']/1e3:.1f} kHz"
+                    )
+
+            except Exception as e:
+                IQ_SAMPLE_STATS["errors"] += 1
+                logger.error(f"❌ Error processing IQ sample: {e}")
+                await asyncio.sleep(0.1)  # Brief pause on error
+
+    except Exception as e:
+        IQ_SAMPLE_STATS["connected"] = False
+        logger.error(f"❌ Failed to connect to LEO NTN Simulator: {e}")
+        logger.error(f"   Ensure {LEO_ZMQ_ENDPOINT} is accessible")
+    finally:
+        socket.close()
+        context.term()
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks on application startup"""
+    logger.info("🚀 Starting SDR API Gateway Server")
+    logger.info(f"🛰️  LEO NTN Endpoint: {LEO_ZMQ_ENDPOINT}")
+
+    # Launch ZMQ receiver as background task
+    asyncio.create_task(zmq_iq_sample_receiver())
 
 
 # =============================================================================
@@ -548,18 +676,60 @@ async def list_usrp_devices(current_user: User = Depends(get_current_active_user
 
 
 # =============================================================================
+# LEO NTN IQ Sample Endpoints (FR-INT-004)
+# =============================================================================
+
+@app.get("/api/v1/leo/iq-stats", response_model=IQSampleStats, tags=["LEO NTN"])
+async def get_iq_sample_statistics():
+    """Get real-time IQ sample statistics from LEO NTN Simulator (FR-INT-004)
+
+    Returns live statistics about the IQ sample stream including:
+    - Connection status
+    - Frame and sample counts
+    - Latest channel parameters (Doppler, delay, path loss)
+    - Signal power measurements
+
+    This endpoint does NOT require authentication to allow monitoring.
+    """
+    return IQSampleStats(
+        **IQ_SAMPLE_STATS,
+        zmq_endpoint=LEO_ZMQ_ENDPOINT
+    )
+
+
+@app.get("/api/v1/leo/iq-buffer", tags=["LEO NTN"])
+async def get_iq_sample_buffer(limit: int = 10):
+    """Get recent IQ sample metadata from buffer (FR-INT-004)
+
+    Returns the last N frames of metadata (without actual IQ samples).
+    Useful for debugging and monitoring the LEO channel conditions.
+
+    Args:
+        limit: Number of recent frames to return (default: 10, max: 100)
+
+    This endpoint does NOT require authentication to allow monitoring.
+    """
+    limit = min(limit, 100)  # Cap at buffer size
+    buffer_list = list(IQ_SAMPLE_BUFFER)
+    return {
+        "buffer_size": len(buffer_list),
+        "recent_frames": buffer_list[-limit:] if buffer_list else []
+    }
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
 if __name__ == "__main__":
     logger.info("🚀 Starting SDR API Gateway Server")
-    logger.info("📚 API Documentation: http://localhost:8080/api/v1/docs")
+    logger.info("📚 API Documentation: http://localhost:8000/api/v1/docs")
     logger.info("🔐 Default login: admin / secret")
     logger.info("🟡 SIMULATED MODE: USRP hardware interfaces are mocked")
 
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8080,
+        port=8000,
         log_level="info",
     )

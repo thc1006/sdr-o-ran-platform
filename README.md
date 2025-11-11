@@ -3,8 +3,9 @@
 
 **Author**: 蔡秀吉 (Hsiu-Chi Tsai)
 **Project Type**: Research & Development SDR-O-RAN Platform
-**Last Updated**: 2025-11-10
-**Status**: 🔧 **DEVELOPMENT IN PROGRESS** (~80% Complete, 4/5 Components Tested) 🔧
+**Last Updated**: 2025-11-11
+**Status**: 🚀 **LEO-SDR Integration Complete** (~85% Complete, LEO NTN Simulator operational) 🚀
+**Latest Integration**: 2025-11-11 - [LEO-SDR-INTEGRATION-REPORT.md](LEO-SDR-INTEGRATION-REPORT.md) | [LEO-SDR-整合實施報告.md](LEO-SDR-整合實施報告.md)
 **Latest Test**: 2025-11-10 - See [REAL-DEPLOYMENT-TEST-REPORT.md](REAL-DEPLOYMENT-TEST-REPORT.md)
 
 [![CI/CD](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml)
@@ -22,8 +23,10 @@ This project is a **research and development** platform integrating Software-Def
 
 **This project is currently in active development**. Please read carefully before using:
 
-**What's Working** ✅ (Verified 2025-11-10):
-- **SDR API Gateway**: 18/18 tests passing, server operational
+**What's Working** ✅ (Latest: 2025-11-11):
+- **LEO NTN Simulator** 🆕: ZMQ streaming operational (249M+ IQ samples transferred, 0% packet loss)
+- **SDR-LEO Integration** 🆕: Real-time IQ sample processing via ZeroMQ (30.72 MSPS, 983 Mbps)
+- **SDR API Gateway**: 18/18 tests passing, server operational with LEO endpoints
 - **gRPC Services**: Protobuf stubs generated, server listening on port 50051
 - **DRL Trainer**: PPO training completed (1000 timesteps), TensorBoard logs created
 - **Quantum Cryptography**: ML-KEM-1024 and ML-DSA-87 both functional

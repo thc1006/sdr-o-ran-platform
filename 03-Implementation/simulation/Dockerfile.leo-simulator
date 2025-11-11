@@ -1,0 +1,47 @@
+FROM nvidia/cuda:12.0.0-runtime-ubuntu22.04
+
+# Prevent interactive prompts during build
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install Python and system dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    libzmq3-dev \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN pip3 install --upgrade pip
+
+# Install TensorFlow with GPU support
+# Note: TensorFlow will auto-detect GPU without [and-cuda] extras
+RUN pip3 install --no-cache-dir tensorflow==2.15.0
+
+# Install Sionna and dependencies
+RUN pip3 install --no-cache-dir \
+    sionna \
+    numpy \
+    scipy \
+    pyzmq \
+    matplotlib
+
+# Set working directory
+WORKDIR /app
+
+# Copy LEO NTN Simulator script
+COPY simulation/leo_ntn_simulator.py /app/
+
+RUN chmod +x /app/leo_ntn_simulator.py
+
+# Expose ZMQ port
+EXPOSE 5555
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python3 -c "import zmq; print('OK')" || exit 1
+
+# Start command
+CMD ["python3", "leo_ntn_simulator.py", "--zmq-address", "tcp://0.0.0.0:5555"]

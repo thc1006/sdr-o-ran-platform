@@ -1048,7 +1048,7 @@ tf.config.set_logical_device_configuration(
 
 ---
 
-**這份文檔完成後，將其複製到 GPU 機器，然後由該機器的 Claude Code 讀取並執行設置！**
+**這份文檔完成後，將其複製到 GPU 機器，然後由該機器的 Automated System 讀取並執行設置！**
 
 **預期結果**:
 - GPU 機器：運行 LEO 衛星模擬器，透過 ZMQ 發送 IQ samples

@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  # LEO NTN Simulator with GPU
+  leo-simulator:
+    build:
+      context: ./03-Implementation
+      dockerfile: simulation/Dockerfile.leo-simulator
+    container_name: leo-ntn-simulator
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    ports:
+      - "5555:5555"
+    networks:
+      - oran-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import zmq; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # SDR Gateway (FastAPI + gRPC)
+  sdr-gateway:
+    build:
+      context: ./03-Implementation/sdr-platform
+      dockerfile: Dockerfile.sdr-gateway
+    container_name: sdr-gateway
+    depends_on:
+      - leo-simulator
+    ports:
+      - "8000:8000"   # FastAPI
+      - "50051:50051" # gRPC
+    environment:
+      - ZMQ_ADDRESS=tcp://leo-simulator:5555
+      - LOG_LEVEL=INFO
+    networks:
+      - oran-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # DRL Trainer with GPU
+  drl-trainer:
+    build:
+      context: ./03-Implementation/ai-ml-pipeline
+      dockerfile: Dockerfile.drl-trainer
+    container_name: drl-trainer
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    ports:
+      - "6006:6006"  # TensorBoard
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+      - ./tensorboard:/app/tensorboard
+    networks:
+      - oran-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import torch; torch.cuda.is_available()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # FlexRIC nearRT-RIC
+  flexric:
+    build:
+      context: ./04-Deployment/docker
+      dockerfile: Dockerfile.flexric
+    container_name: flexric-ric
+    ports:
+      - "36421:36421"  # E2 interface
+      - "36422:36422"  # E2 interface (backup)
+    networks:
+      - oran-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "ps aux | grep nearRT-RIC | grep -v grep"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  oran-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  models:
+  logs:
+  tensorboard:

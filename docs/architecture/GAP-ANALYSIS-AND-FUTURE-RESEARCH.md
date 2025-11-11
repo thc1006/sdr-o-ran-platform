@@ -170,7 +170,7 @@ import openai
 
 class ResourceOptimizationRApp:
     def __init__(self):
-        self.llm = openai.ChatCompletion  # GPT-4 or Claude
+        self.llm = openai.ChatCompletion  # GPT-4
         self.drl_agent = PPOAgent()
 
     def optimize_resources(self, network_state):

@@ -541,7 +541,7 @@ kubectl logs -n ricplt deployment/e2term -f | grep "E2 Setup"
    - Multi-agent coordination
 
 3. **LLM-Augmented DRL**
-   - GPT-4/Claude integration for contextual understanding
+   - GPT-4 integration for contextual understanding
    - Natural language policy descriptions
    - Explainable decision making
 
@@ -597,7 +597,7 @@ kubectl logs -n ricplt deployment/e2term -f | grep "E2 Setup"
 
 - Lu et al. (2025): "99.91% Coverage with 56-Beam Digital Beamforming"
 - Wang et al. (2025): "Sidelobe Cancellation for Multi-Frequency Antennas"
-- GPT-4/Claude (2025): "LLM-Augmented Deep Reinforcement Learning for RAN"
+- GPT-4 (2025): "LLM-Augmented Deep Reinforcement Learning for RAN"
 
 ---
 

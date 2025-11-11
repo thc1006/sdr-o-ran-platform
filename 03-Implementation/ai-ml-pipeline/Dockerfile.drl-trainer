@@ -1,0 +1,49 @@
+FROM nvidia/cuda:12.0.0-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install Python and dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Upgrade pip
+RUN pip3 install --upgrade pip
+
+# Install PyTorch with CUDA support
+RUN pip3 install --no-cache-dir \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Install ML dependencies
+RUN pip3 install --no-cache-dir \
+    stable-baselines3[extra] \
+    gymnasium \
+    tensorboard \
+    redis \
+    numpy \
+    scipy \
+    matplotlib \
+    pandas
+
+# Copy DRL training code
+COPY training/drl_trainer_simple.py /app/drl_trainer.py
+
+RUN chmod +x /app/drl_trainer.py
+
+# Create logs and models directories
+RUN mkdir -p /app/logs /app/models /app/tensorboard
+
+# Expose TensorBoard port
+EXPOSE 6006
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python3 -c "import torch; torch.cuda.is_available()" || exit 1
+
+# Start TensorBoard and training
+CMD sh -c "tensorboard --logdir=/app/tensorboard --host=0.0.0.0 --port=6006 & python3 /app/drl_trainer.py --algorithm PPO --timesteps 100000 --n-envs 1"

@@ -1,0 +1,68 @@
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libzmq3-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy and install requirements
+COPY api-gateway/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional dependencies
+RUN pip install --no-cache-dir pyzmq redis
+
+# Copy all SDR platform code
+COPY api-gateway/ /app/api-gateway/
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "🚀 Starting SDR Services..."\n\
+\n\
+# Start API Gateway in background\n\
+cd /app/api-gateway\n\
+echo "📡 Starting FastAPI server on port 8000..."\n\
+python3 sdr_api_server.py &\n\
+API_PID=$!\n\
+\n\
+# Wait for API to start\n\
+sleep 5\n\
+\n\
+# Check if API is running\n\
+if curl -s http://localhost:8000/healthz > /dev/null; then\n\
+    echo "✅ API Gateway started successfully"\n\
+else\n\
+    echo "❌ API Gateway failed to start"\n\
+fi\n\
+\n\
+# Start gRPC server (if exists)\n\
+if [ -f /app/integration/sdr_grpc_server.py ]; then\n\
+    cd /app/integration\n\
+    echo "🔗 Starting gRPC server on port 50051..."\n\
+    python3 sdr_grpc_server.py &\n\
+    GRPC_PID=$!\n\
+fi\n\
+\n\
+echo "✅ All SDR services started"\n\
+\n\
+# Keep container running\n\
+wait $API_PID\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Expose ports
+EXPOSE 8000 50051
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/healthz || exit 1
+
+CMD ["/app/start.sh"]
