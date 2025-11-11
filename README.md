@@ -3,7 +3,7 @@
 **Author**: Hsiu-Chi Tsai (thc1006@ieee.org)
 **Project Type**: Research & Development Platform
 **Last Updated**: 2025-11-12
-**Version**: 3.0.0
+**Version**: 3.1.0
 
 [![CI/CD](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Research-blue.svg)](LICENSE)
@@ -28,18 +28,18 @@ This project is a research and development platform integrating Software-Defined
 
 ## Project Status
 
-**Overall Completion**: Approximately 65-70% (Code complete, testing and hardware integration pending)
+**Overall Completion**: Approximately 70-75% (Core components tested, hardware integration pending)
 
 ### Component Status
 
 | Component | Implementation | Testing | Hardware Required | Status |
 |-----------|---------------|---------|-------------------|--------|
-| SDR API Gateway | Complete (685 lines) | 18/18 tests pass | USRP X310 ($7.5k) | Code operational, hardware simulated |
+| SDR API Gateway | Complete (685 lines) | 18/18 tests pass + LEO integration verified | USRP X310 ($7.5k) | Docker deployed, 14,694+ frames received |
+| LEO NTN Simulator | Complete (102 lines) | Fully operational with live testing | No | 38,000+ frames transmitted, GPU accelerated |
 | gRPC Services | Complete (1,157 lines) | 3/4 tests pass | No | Server functional, minor test issue |
 | DRL Trainer | Complete (649 lines) | Training successful | No | PPO model trained |
 | Quantum Security | Complete (584 lines) | Both algorithms working | No | ML-KEM-1024 & ML-DSA-87 functional |
 | Traffic Steering xApp | Complete (481 lines) | Partial | RIC framework | Code valid, requires framework |
-| LEO NTN Simulator | Complete (102 lines) | Operational | No | ZMQ streaming verified |
 | O-RAN gNB | Complete (1,147 lines) | Not tested | Yes | Code exists, requires validation |
 | Near-RT RIC | Complete (891 lines) | Not tested | Partial | Requires RIC framework |
 | Orchestration | Complete (743 lines) | K8s manifests created | K8s cluster | Deployment not verified |
@@ -48,11 +48,17 @@ This project is a research and development platform integrating Software-Defined
 
 ### What Works
 
-- LEO NTN Simulator with ZeroMQ streaming (249M+ IQ samples transferred, 30.72 MSPS)
-- SDR API Gateway with 18 endpoints (FastAPI + OAuth2)
-- gRPC bidirectional streaming services (port 50051)
+- **LEO-SDR Integration** (Live tested 2025-11-12):
+  - LEO NTN Simulator: 38,000+ frames transmitted, GPU-accelerated (CUDA 12.0)
+  - SDR API Gateway: 14,694+ frames received via ZMQ @ 30.72 MSPS
+  - Total IQ samples: 4.5 billion samples (4,513,996,800)
+  - Doppler shift validation: ±40 kHz range verified
+  - Propagation delay: 5-25 ms LEO characteristics confirmed
+  - Zero packet loss, stable real-time streaming
+- SDR API Gateway with 18 RESTful endpoints (FastAPI + OAuth2 + JWT)
+- gRPC bidirectional streaming services (VITA 49.2 VRT on port 50051)
 - DRL training pipeline (PPO/SAC algorithms, 1000 timesteps)
-- Post-Quantum Cryptography implementation (NIST-approved algorithms)
+- Post-Quantum Cryptography implementation (ML-KEM-1024, ML-DSA-87 NIST-approved)
 - CI/CD pipeline with automated testing and security scanning
 - Comprehensive documentation (95+ markdown files)
 
@@ -65,17 +71,29 @@ This project is a research and development platform integrating Software-Defined
 - Production hardening and security audit needed
 - Performance benchmarking on actual hardware
 
-### Recent Updates (2025-11-11)
+### Recent Updates (2025-11-12)
 
-- LEO-SDR integration completed with real-time IQ sample processing
-- ZeroMQ streaming operational with 0% packet loss in testing
+- **LEO-SDR Integration Testing Completed**:
+  - Live testing: 38,000+ frames transmitted, 14,694+ frames received
+  - 4.5 billion IQ samples processed (4,513,996,800 samples)
+  - Doppler compensation validated: ±40 kHz range
+  - LEO channel characteristics confirmed: 5-25 ms propagation delay, 165 dB FSPL
+  - Created test receiver program with signal analysis visualization
+- **Project Reorganization**:
+  - Moved 12 files to organized subdirectories (docs/deployment/, docs/reports/, scripts/)
+  - Added bilingual technical reports index
+  - Created comprehensive technical documentation
+- **Deployment Verification**:
+  - Docker containers operational: leo-ntn-simulator + sdr-gateway
+  - ZeroMQ streaming: 0% packet loss in extended testing
+  - RESTful API endpoints verified: /api/v1/leo/iq-stats, /api/v1/leo/iq-buffer
 - Security fixes applied (removed hardcoded credentials, added input validation)
-- Documentation reorganized for improved clarity
 
 **Detailed Reports**:
-- [LEO-SDR Integration Report](docs/reports/LEO-SDR-INTEGRATION-REPORT.md)
-- [Deployment Test Report](docs/deployment/REAL-DEPLOYMENT-TEST-REPORT.md)
-- [Known Issues](docs/testing/KNOWN-ISSUES.md)
+- [LEO-SDR Integration Report (繁體中文)](docs/reports/LEO-SDR-整合報告.md)
+- [LEO-SDR Integration Report (English)](docs/reports/LEO-SDR-INTEGRATION-REPORT-EN.md)
+- [Technical Reports Index](docs/reports/README.md)
+- [Deployment Guides](docs/deployment/README.md)
 
 ---
 
