@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Machine Learning Models (大文件)
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.pt
+*.pth
+*.ckpt
+*.pb
+*.onnx
+*.tflite
+*.caffemodel
+
+# 压缩文件（可能很大）
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# TensorBoard logs
+tensorboard/
+logs/
+runs/
+
+# Dataset (通常很大)
+data/
+datasets/
+*.csv
+*.tsv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 环境变量
+.env
+.env.local
+
+# 临时文件
+*.tmp
+*.temp
+*.log
