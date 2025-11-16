@@ -1,0 +1,165 @@
+# E2 Interface Configuration Example
+# Based on O-RAN E2 specifications v4.0.0
+
+e2_interface:
+  # SCTP Transport Configuration
+  sctp:
+    # Bind address for E2 termination (0.0.0.0 for all interfaces)
+    bind_address: "0.0.0.0"
+
+    # E2 interface port (default: 36421)
+    port: 36421
+
+    # Maximum number of concurrent E2 node connections
+    max_connections: 100
+
+    # SCTP heartbeat interval in seconds
+    heartbeat_interval: 30
+
+    # SCTP stream configuration
+    inbound_streams: 16
+    outbound_streams: 16
+
+    # Connection timeout in seconds
+    connection_timeout: 10
+
+  # E2AP Protocol Configuration
+  e2ap:
+    # Transaction timeout in seconds
+    transaction_timeout: 5
+
+    # Maximum retries for failed transactions
+    max_retries: 3
+
+    # E2 setup procedure timeout in seconds
+    setup_timeout: 10
+
+    # Subscription procedure timeout in seconds
+    subscription_timeout: 5
+
+  # RIC Configuration
+  ric:
+    # Global RIC identifier
+    global_ric_id: "RIC-001"
+
+    # PLMN ID (MCC + MNC)
+    plmn_id: "00101"
+
+    # Near-RT RIC instance ID
+    instance_id: 1
+
+  # Service Models Configuration
+  service_models:
+    # E2SM-KPM (Key Performance Metrics)
+    - name: "E2SM-KPM"
+      version: "3.0"
+      oid: "1.3.6.1.4.1.53148.1.1.2.3"
+      ran_function_id: 1
+      enabled: true
+      config:
+        # Default reporting period in milliseconds
+        default_period: 1000
+        # Maximum number of concurrent subscriptions per node
+        max_subscriptions: 100
+        # Supported measurements
+        measurements:
+          - "DRB.UEThpDl"
+          - "DRB.UEThpUl"
+          - "RRC.ConnEstabSucc"
+          - "RRC.ConnEstabAtt"
+          - "HANDOVER.SuccRate"
+
+    # E2SM-RC (RAN Control)
+    - name: "E2SM-RC"
+      version: "1.0"
+      oid: "1.3.6.1.4.1.53148.1.1.2.2"
+      ran_function_id: 2
+      enabled: true
+      config:
+        # Control action timeout in milliseconds
+        control_timeout: 1000
+        # Allow policy-based control
+        policy_based: true
+
+  # Health Check Configuration
+  health_check:
+    # Enable health checking
+    enabled: true
+
+    # Health check interval in seconds
+    interval: 30
+
+    # Node timeout in seconds (mark as unhealthy)
+    node_timeout: 60
+
+    # Node removal timeout in seconds (remove from registry)
+    node_removal_timeout: 300
+
+  # Logging Configuration
+  logging:
+    # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    level: "INFO"
+
+    # Log format
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+    # Log to file
+    file:
+      enabled: true
+      path: "/var/log/ric/e2-interface.log"
+      max_size: 10485760  # 10MB
+      backup_count: 5
+
+    # Log to console
+    console:
+      enabled: true
+
+  # Security Configuration
+  security:
+    # Enable TLS/DTLS for SCTP
+    tls_enabled: false
+
+    # TLS configuration
+    tls:
+      # Server certificate path
+      cert_file: "/etc/ric/certs/server.crt"
+
+      # Server private key path
+      key_file: "/etc/ric/certs/server.key"
+
+      # CA certificate for client verification
+      ca_file: "/etc/ric/certs/ca.crt"
+
+      # Require client certificate
+      require_client_cert: true
+
+  # Performance Tuning
+  performance:
+    # Maximum indication queue size per subscription
+    indication_queue_size: 1000
+
+    # Worker threads for message processing
+    worker_threads: 4
+
+    # Enable message batching
+    batching_enabled: false
+    batch_size: 10
+    batch_timeout_ms: 100
+
+  # Metrics and Monitoring
+  metrics:
+    # Enable metrics collection
+    enabled: true
+
+    # Metrics export port (Prometheus format)
+    port: 9090
+
+    # Metrics to collect
+    collect:
+      - "e2_nodes_connected"
+      - "e2_subscriptions_active"
+      - "e2_indications_received"
+      - "e2_indications_per_second"
+      - "e2_control_requests_sent"
+      - "e2_setup_success_rate"
+      - "e2_message_latency"

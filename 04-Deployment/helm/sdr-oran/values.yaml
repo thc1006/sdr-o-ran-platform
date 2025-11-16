@@ -1,0 +1,165 @@
+# Default values for sdr-oran-platform Helm chart
+
+global:
+  namespace: sdr-oran
+  imagePullPolicy: IfNotPresent
+  imageRegistry: ""
+
+# E2 Interface configuration
+e2Interface:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: sdr-oran/e2-interface
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    sctpPort: 36421
+    httpPort: 8080
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  config:
+    globalRicId: "RIC-001"
+    mcc: "001"
+    mnc: "01"
+    healthCheckIntervalSec: 30
+    subscriptionTimeoutSec: 60
+
+# QoS Optimizer xApp
+xappQos:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: sdr-oran/xapp-qos-optimizer
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  config:
+    throughputThresholdMbps: 10.0
+    sdlNamespace: "qos-optimizer"
+
+# Handover Manager xApp
+xappHandover:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: sdr-oran/xapp-handover-manager
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8001
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  config:
+    rsrpThresholdDbm: -110
+    cellLoadThresholdPercent: 80
+    sdlNamespace: "handover-manager"
+
+# gRPC Server
+grpcServer:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: sdr-oran/grpc-server
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: LoadBalancer
+    grpcPort: 50051
+    metricsPort: 8082
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  tls:
+    enabled: true
+    mtls: true
+    certDir: "/etc/certs"
+
+# Redis (SDL backend)
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: "sdr-oran-redis-password"
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+# Prometheus
+prometheus:
+  enabled: true
+  server:
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+# Grafana
+grafana:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 10Gi
+  adminPassword: "admin12345"
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server:80
+        isDefault: true
+  service:
+    type: LoadBalancer
+    port: 3000
+
+# Monitoring
+monitoring:
+  enabled: true
+  scrapeInterval: 15s
+  evaluationInterval: 15s
+
+# Logging
+logging:
+  level: INFO
+  format: json

@@ -1,0 +1,26 @@
+# NTN Simulation Requirements
+
+# Core Deep Learning
+tensorflow>=2.15.0
+torch>=2.9.0
+numpy>=1.26.0
+
+# Sionna (GPU-accelerated wireless simulation)
+sionna>=0.18.0
+
+# Additional ML libraries
+gymnasium>=0.29.0
+stable-baselines3>=2.1.0
+
+# Visualization
+matplotlib>=3.8.0
+plotly>=5.18.0
+seaborn>=0.13.0
+
+# Utilities
+pandas>=2.1.0
+scipy>=1.11.0
+networkx>=3.2.0
+
+# OpenNTN dependencies (will be added after cloning)
+# See: https://github.com/ant-uni-bremen/OpenNTN

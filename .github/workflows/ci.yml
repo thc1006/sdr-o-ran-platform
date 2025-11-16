@@ -358,6 +358,51 @@ jobs:
             echo "No Terraform infrastructure directory found, skipping"
           fi
 
+  # ==========================================================================
+  # Job 7: Performance Benchmarks
+  # ==========================================================================
+  performance-benchmarks:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    needs: test-python
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-benchmark
+          if [ -f 03-Implementation/sdr-platform/api-gateway/requirements.txt ]; then
+            pip install -r 03-Implementation/sdr-platform/api-gateway/requirements.txt
+          fi
+
+      - name: Generate gRPC stubs
+        run: |
+          cd 03-Implementation/integration/sdr-oran-connector
+          python -m grpc_tools.protoc -I./proto --python_out=. --grpc_python_out=. proto/sdr_oran.proto
+
+      - name: Run performance benchmarks
+        run: |
+          pytest tests/performance/ -v --tb=short
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: |
+            .pytest_cache/
+          retention-days: 30
+
 # ============================================================================
 # End of GitHub Actions Workflow
 # ============================================================================

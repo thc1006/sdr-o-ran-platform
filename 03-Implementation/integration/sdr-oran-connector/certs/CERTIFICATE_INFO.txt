@@ -1,0 +1,69 @@
+================================================================================
+CERTIFICATE INFORMATION - SDR-O-RAN Platform
+================================================================================
+
+Generated: 2025-11-17
+Location: /home/gnb/thc1006/sdr-o-ran-platform/03-Implementation/integration/sdr-oran-connector/certs/
+
+CA CERTIFICATE
+--------------
+File: ca.crt
+Issuer: C=TW, ST=Taiwan, L=Taipei, O=SDR-ORAN, OU=Research, CN=SDR-ORAN-CA
+Subject: C=TW, ST=Taiwan, L=Taipei, O=SDR-ORAN, OU=Research, CN=SDR-ORAN-CA (self-signed)
+Valid From: 2025-11-16 19:03:03 GMT
+Valid Until: 2026-11-16 19:03:03 GMT
+Key: RSA 4096-bit
+
+SERVER CERTIFICATE
+------------------
+File: server.crt
+Issuer: C=TW, ST=Taiwan, L=Taipei, O=SDR-ORAN, OU=Research, CN=SDR-ORAN-CA
+Subject: C=TW, ST=Taiwan, L=Taipei, O=SDR-ORAN, OU=gRPC-Server, CN=localhost
+Valid From: 2025-11-16 19:04:02 GMT
+Valid Until: 2026-11-16 19:04:02 GMT
+Key: RSA 4096-bit
+
+CLIENT CERTIFICATE
+------------------
+File: client.crt
+Issuer: C=TW, ST=Taiwan, L=Taipei, O=SDR-ORAN, OU=Research, CN=SDR-ORAN-CA
+Subject: C=TW, ST=Taiwan, L=Taipei, O=SDR-ORAN, OU=gRPC-Client, CN=oran-client
+Valid From: 2025-11-16 19:04:13 GMT
+Valid Until: 2026-11-16 19:04:13 GMT
+Key: RSA 4096-bit
+
+VERIFICATION STATUS
+-------------------
+✅ All certificates verified against CA
+✅ All private keys secured (600 permissions)
+✅ All certificates readable (644 permissions)
+
+RENEWAL REMINDER
+----------------
+Certificates expire: 2026-11-16
+
+Set calendar reminder to renew certificates before expiry.
+Follow certificate generation commands in TLS_QUICK_START.md
+
+SECURITY NOTES
+--------------
+- These are self-signed certificates for development/testing
+- For production, use CA-issued certificates (Let's Encrypt, DigiCert, etc.)
+- Never commit private keys to version control
+- Rotate certificates regularly (recommended: every 90 days for production)
+
+VERIFICATION COMMANDS
+---------------------
+# Verify certificates
+openssl verify -CAfile ca.crt server.crt
+openssl verify -CAfile ca.crt client.crt
+
+# Check expiry
+openssl x509 -in server.crt -noout -dates
+openssl x509 -in client.crt -noout -dates
+
+# View certificate details
+openssl x509 -in server.crt -text -noout
+openssl x509 -in client.crt -text -noout
+
+================================================================================

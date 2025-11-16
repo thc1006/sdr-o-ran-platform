@@ -1,0 +1,17 @@
+# Grafana Dashboard Provider Configuration
+# Version: 1.0.0
+# Date: 2025-11-17
+
+apiVersion: 1
+
+providers:
+  - name: 'SDR-O-RAN Dashboards'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true

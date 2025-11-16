@@ -1,0 +1,101 @@
+# Prometheus Configuration for SDR O-RAN Platform
+# Version: 1.0.0
+# Date: 2025-11-17
+
+global:
+  scrape_interval: 15s       # Scrape targets every 15 seconds
+  evaluation_interval: 15s   # Evaluate rules every 15 seconds
+  external_labels:
+    cluster: 'sdr-oran-platform'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Load rules from files
+rule_files:
+  # - "prometheus-rules.yml"
+  # - "alert-rules.yml"
+
+# Scrape configurations
+scrape_configs:
+  # SDR Gateway - gRPC Server Metrics
+  - job_name: 'sdr-gateway'
+    static_configs:
+      - targets: ['sdr-gateway:8000']
+        labels:
+          service: 'sdr-gateway'
+          component: 'grpc-server'
+    metrics_path: '/metrics'
+    scrape_interval: 10s      # More frequent for real-time IQ streaming
+    scrape_timeout: 5s
+
+  # DRL Trainer - AI/ML Metrics
+  - job_name: 'drl-trainer'
+    static_configs:
+      - targets: ['drl-trainer:8001']
+        labels:
+          service: 'drl-trainer'
+          component: 'ai-ml'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # LEO Simulator Metrics
+  - job_name: 'leo-simulator'
+    static_configs:
+      - targets: ['leo-simulator:8002']
+        labels:
+          service: 'leo-simulator'
+          component: 'satellite'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # FlexRIC nearRT-RIC Metrics
+  - job_name: 'flexric'
+    static_configs:
+      - targets: ['flexric:8003']
+        labels:
+          service: 'flexric'
+          component: 'oran-ric'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Prometheus Self-Monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          component: 'monitoring'
+
+  # Node Exporter (if deployed for system metrics)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          component: 'system-metrics'
+
+  # cAdvisor (Container metrics)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'
+          component: 'container-metrics'
+
+# Remote write configuration (optional - for long-term storage)
+# remote_write:
+#   - url: "http://remote-prometheus:9090/api/v1/write"
+#     queue_config:
+#       capacity: 10000
+#       max_shards: 200
+#       max_samples_per_send: 5000
+
+# Remote read configuration (optional)
+# remote_read:
+#   - url: "http://remote-prometheus:9090/api/v1/read"

@@ -168,12 +168,16 @@ class RICEnvironment(gym.Env):
 
     def __init__(
         self,
-        redis_host: str = "redis-standalone.ricplt.svc.cluster.local",
+        redis_host: str = None,  # ✅ 2025-11-17: Use None to allow env var override
         redis_port: int = 6379,
         max_steps: int = 1000,
         reward_weights: Optional[Dict[str, float]] = None
     ):
         super().__init__()
+
+        # ✅ 2025-11-17: Allow environment variable override for Redis host
+        if redis_host is None:
+            redis_host = os.getenv("REDIS_HOST", "localhost")  # Default to localhost for local dev
 
         # SDL connection
         self.redis_client = redis.Redis(
@@ -472,7 +476,12 @@ class DRLTrainer:
             )
 
         if self.config.n_envs > 1:
-            return SubprocVecEnv([make_env for _ in range(self.config.n_envs)])
+            # ✅ 2025-11-17: Use 'fork' method to avoid pickle errors (stable-baselines3 best practice)
+            # Reference: https://stable-baselines3.readthedocs.io/en/master/guide/custom_env.html
+            return SubprocVecEnv(
+                [make_env for _ in range(self.config.n_envs)],
+                start_method='fork'  # Solves pickle errors on Unix/Linux
+            )
         else:
             return DummyVecEnv([make_env])
 

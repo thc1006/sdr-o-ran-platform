@@ -104,6 +104,79 @@ services:
       retries: 3
       start_period: 30s
 
+  # MCP Gateway - Model Context Protocol Gateway
+  mcp-gateway:
+    build:
+      context: ./mcp-gateway
+      dockerfile: Dockerfile
+    container_name: mcp-gateway
+    ports:
+      - "3001:3000"  # MCP Gateway port (changed to avoid conflict with Grafana)
+    volumes:
+      - ./mcp-gateway/registry.yaml:/app/registry.yaml:ro
+    networks:
+      - oran-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "ls /app/registry.yaml"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Prometheus - Metrics Collection and Storage
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"  # Prometheus Web UI
+    volumes:
+      - ./04-Deployment/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - oran-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Grafana - Metrics Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3002:3000"  # Grafana Web UI (using port 3002 to avoid conflicts)
+    volumes:
+      - ./04-Deployment/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./04-Deployment/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_INSTALL_PLUGINS=
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3002
+    networks:
+      - oran-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 networks:
   oran-network:
     driver: bridge
@@ -115,3 +188,5 @@ volumes:
   models:
   logs:
   tensorboard:
+  prometheus-data:
+  grafana-data:

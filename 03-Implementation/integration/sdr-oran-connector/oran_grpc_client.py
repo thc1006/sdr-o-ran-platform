@@ -26,9 +26,9 @@ from dataclasses import dataclass
 from collections import deque
 import threading
 
-# 🟡 Import generated protobuf stubs (run protoc first)
-# import sdr_oran_pb2
-# import sdr_oran_pb2_grpc
+# ✅ Import generated protobuf stubs (2025-11-17: stubs verified to exist)
+import sdr_oran_pb2
+import sdr_oran_pb2_grpc
 
 logging.basicConfig(
     level=logging.INFO,
@@ -131,6 +131,63 @@ class IQProcessor:
         return 0, processing_time_ms
 
 
+def create_secure_channel(host: str, port: int, cert_dir: str = "./certs", use_mtls: bool = False):
+    """Create secure gRPC channel with TLS/mTLS encryption.
+
+    Args:
+        host: Server hostname
+        port: Server port
+        cert_dir: Directory containing SSL certificates
+        use_mtls: Whether to use mTLS (provide client certificate)
+
+    Returns:
+        grpc.Channel object
+    """
+    import os
+
+    # Read CA certificate
+    with open(f'{cert_dir}/ca.crt', 'rb') as f:
+        ca_cert = f.read()
+
+    if use_mtls:
+        # Read client certificate and key for mTLS
+        with open(f'{cert_dir}/client.crt', 'rb') as f:
+            client_cert = f.read()
+        with open(f'{cert_dir}/client.key', 'rb') as f:
+            client_key = f.read()
+
+        # Create mTLS credentials
+        credentials = grpc.ssl_channel_credentials(
+            root_certificates=ca_cert,
+            private_key=client_key,
+            certificate_chain=client_cert
+        )
+
+        logger.info(f"Creating mTLS channel to {host}:{port} (client certificate provided)")
+    else:
+        # Create TLS-only credentials
+        credentials = grpc.ssl_channel_credentials(
+            root_certificates=ca_cert
+        )
+
+        logger.info(f"Creating TLS channel to {host}:{port}")
+
+    # Create secure channel
+    channel = grpc.secure_channel(
+        f'{host}:{port}',
+        credentials,
+        options=[
+            ('grpc.ssl_target_name_override', 'localhost'),
+            ('grpc.max_receive_message_length', 100 * 1024 * 1024),  # 100 MB
+            ('grpc.max_send_message_length', 100 * 1024 * 1024),
+            ('grpc.keepalive_time_ms', 10000),
+            ('grpc.keepalive_timeout_ms', 5000)
+        ]
+    )
+
+    return channel
+
+
 class ORANIQClient:
     """
     O-RAN gRPC client for receiving IQ samples from SDR
@@ -139,19 +196,30 @@ class ORANIQClient:
     def __init__(self,
                  server_address: str = "localhost:50051",
                  station_id: str = "ground-station-1",
-                 secure: bool = False):
+                 secure: bool = False,
+                 use_mtls: bool = False,
+                 cert_dir: str = "./certs"):
 
         self.server_address = server_address
         self.station_id = station_id
         self.secure = secure
+        self.use_mtls = use_mtls
 
         # Create channel
-        if secure:
-            # 🟡 TODO: Load TLS credentials
-            # credentials = grpc.ssl_channel_credentials()
-            # self.channel = grpc.secure_channel(server_address, credentials)
-            logger.warning("🟡 Secure mode not implemented, using insecure channel")
-            self.channel = grpc.insecure_channel(server_address)
+        if secure or use_mtls:
+            # Split server address into host and port
+            if ':' in server_address:
+                host, port = server_address.split(':')
+                port = int(port)
+            else:
+                host = server_address
+                port = 50051
+
+            self.channel = create_secure_channel(host, port, cert_dir, use_mtls)
+            if use_mtls:
+                logger.info(f"Secure gRPC channel created to {server_address} (mTLS enabled)")
+            else:
+                logger.info(f"Secure gRPC channel created to {server_address} (TLS enabled)")
         else:
             self.channel = grpc.insecure_channel(
                 server_address,
@@ -162,11 +230,11 @@ class ORANIQClient:
                     ('grpc.keepalive_timeout_ms', 5000)
                 ]
             )
+            logger.warning("Using INSECURE channel (no TLS)")
 
         # Create stubs
-        # 🟡 Uncomment after protoc generation
-        # self.iq_stub = sdr_oran_pb2_grpc.IQStreamServiceStub(self.channel)
-        # self.spectrum_stub = sdr_oran_pb2_grpc.SpectrumMonitorServiceStub(self.channel)
+        self.iq_stub = sdr_oran_pb2_grpc.IQStreamServiceStub(self.channel)
+        self.spectrum_stub = sdr_oran_pb2_grpc.SpectrumMonitorServiceStub(self.channel)
 
         self.processor = IQProcessor()
         self.stats = ClientStatistics()
@@ -353,21 +421,32 @@ class ORANIQClient:
 
 def main():
     """Example usage"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description='O-RAN IQ Client - SDR Ground Station Connector')
+    parser.add_argument('--server', type=str, default='localhost:50051', help='Server address (default: localhost:50051)')
+    parser.add_argument('--station-id', type=str, default='ground-station-1', help='Station ID (default: ground-station-1)')
+    parser.add_argument('--tls', action='store_true', help='Enable TLS encryption')
+    parser.add_argument('--mtls', action='store_true', help='Enable mTLS (mutual authentication)')
+    parser.add_argument('--cert-dir', type=str, default='./certs', help='Certificate directory (default: ./certs)')
+    args = parser.parse_args()
 
     logger.info("="*60)
     logger.info("O-RAN IQ Client - SDR Ground Station Connector")
     logger.info("="*60)
 
     # Configuration
-    SERVER_ADDRESS = "localhost:50051"
-    STATION_ID = "ground-station-1"
+    SERVER_ADDRESS = args.server
+    STATION_ID = args.station_id
     BAND = "Ku-band"
 
     # Create client
     client = ORANIQClient(
         server_address=SERVER_ADDRESS,
         station_id=STATION_ID,
-        secure=False
+        secure=args.tls,
+        use_mtls=args.mtls,
+        cert_dir=args.cert_dir
     )
 
     try:

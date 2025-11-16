@@ -1,0 +1,198 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/home/gnb/thc1006/sdr-o-ran-platform"
+      ],
+      "env": {}
+    },
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "kubernetes": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@strowk/mcp-k8s-go"
+      ],
+      "env": {
+        "KUBECONFIG": "/home/gnb/.kube/config"
+      }
+    },
+    "docker": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-docker"
+      ],
+      "env": {}
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "playwright-mcp-server"
+      ],
+      "env": {}
+    },
+    "prometheus": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-prometheus"
+      ],
+      "env": {
+        "PROMETHEUS_URL": "http://localhost:9090"
+      }
+    },
+    "mcp-fetch": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-gateway",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-fetch"
+      ],
+      "env": {}
+    },
+    "mcp-arxiv": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-gateway",
+        "npx",
+        "-y",
+        "arxiv-mcp-server"
+      ],
+      "env": {}
+    },
+    "mcp-context7": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-gateway",
+        "npx",
+        "-y",
+        "@upstack-ai/context7-mcp"
+      ],
+      "env": {}
+    },
+    "mcp-dockerhub": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-gateway",
+        "npx",
+        "-y",
+        "dockerhub-mcp-server"
+      ],
+      "env": {}
+    },
+    "mcp-paper-search": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-gateway",
+        "npx",
+        "-y",
+        "paper-search-mcp-server"
+      ],
+      "env": {}
+    },
+    "mcp-gateway-filesystem": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-gateway",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/app"
+      ],
+      "env": {}
+    },
+    "mcp-gateway-github": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-gateway",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "mcp-gateway-docker": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-gateway",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-docker"
+      ],
+      "env": {}
+    },
+    "mcp-gateway-kubernetes": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-gateway",
+        "npx",
+        "-y",
+        "@strowk/mcp-k8s-go"
+      ],
+      "env": {}
+    },
+    "mcp-gateway-playwright": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-gateway",
+        "npx",
+        "-y",
+        "playwright-mcp-server"
+      ],
+      "env": {}
+    }
+  }
+}

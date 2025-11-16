@@ -74,3 +74,14 @@ datasets/
 *.tmp
 *.temp
 *.log
+
+# TLS Certificates (DO NOT COMMIT PRIVATE KEYS)
+certs/*.key
+certs/*.csr
+certs/*.srl
+
+# Coverage Reports
+htmlcov/
+.coverage
+.pytest_cache/
+CLAUDE.md

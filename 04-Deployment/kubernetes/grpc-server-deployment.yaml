@@ -1,0 +1,116 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdr-grpc-server
+  namespace: sdr-oran
+  labels:
+    app: sdr-grpc-server
+    component: integration
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: sdr-grpc-server
+  template:
+    metadata:
+      labels:
+        app: sdr-grpc-server
+        component: integration
+        tier: backend
+    spec:
+      containers:
+      - name: grpc-server
+        image: sdr-oran/grpc-server:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 50051
+          name: grpc
+          protocol: TCP
+        - containerPort: 8082
+          name: metrics
+          protocol: TCP
+        env:
+        - name: GRPC_PORT
+          value: "50051"
+        - name: USE_TLS
+          value: "true"
+        - name: USE_MTLS
+          value: "true"
+        - name: CERT_DIR
+          value: "/etc/certs"
+        - name: PROMETHEUS_PORT
+          value: "8082"
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/grpc_health_probe
+            - -addr=:50051
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - /bin/grpc_health_probe
+            - -addr=:50051
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        volumeMounts:
+        - name: tls-certs
+          mountPath: /etc/certs
+          readOnly: true
+      volumes:
+      - name: tls-certs
+        secret:
+          secretName: grpc-tls-certs
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sdr-grpc-server-service
+  namespace: sdr-oran
+  labels:
+    app: sdr-grpc-server
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8082"
+    prometheus.io/path: "/metrics"
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 50051
+    targetPort: 50051
+    protocol: TCP
+    name: grpc
+  - port: 8082
+    targetPort: 8082
+    protocol: TCP
+    name: metrics
+  selector:
+    app: sdr-grpc-server
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grpc-tls-certs
+  namespace: sdr-oran
+type: Opaque
+data:
+  # Base64 encoded certificates (replace with actual values)
+  ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCg==
+  server.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCg==
+  server.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCg==
+  client.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCg==
+  client.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCg==

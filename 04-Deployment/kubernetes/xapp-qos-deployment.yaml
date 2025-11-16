@@ -1,0 +1,90 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xapp-qos-optimizer
+  namespace: sdr-oran
+  labels:
+    app: xapp-qos-optimizer
+    component: xapp
+    xapp-type: qos
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: xapp-qos-optimizer
+  template:
+    metadata:
+      labels:
+        app: xapp-qos-optimizer
+        component: xapp
+        xapp-type: qos
+    spec:
+      containers:
+      - name: qos-optimizer
+        image: sdr-oran/xapp-qos-optimizer:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        - name: XAPP_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: XAPP_NAME
+          value: "qos-optimizer"
+        - name: XAPP_VERSION
+          value: "1.0.0"
+        - name: E2_INTERFACE_HOST
+          value: "e2-interface-service.sdr-oran.svc.cluster.local"
+        - name: E2_INTERFACE_PORT
+          value: "36421"
+        - name: REDIS_HOST
+          value: "redis-service.sdr-oran.svc.cluster.local"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: SDL_NAMESPACE
+          value: "qos-optimizer"
+        - name: THROUGHPUT_THRESHOLD_MBPS
+          value: "10.0"
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xapp-qos-optimizer-service
+  namespace: sdr-oran
+  labels:
+    app: xapp-qos-optimizer
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: xapp-qos-optimizer

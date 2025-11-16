@@ -1,0 +1,34 @@
+apiVersion: v2
+name: sdr-oran-platform
+description: A Helm chart for SDR-O-RAN Platform with E2 Interface and xApp Framework
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - o-ran
+  - sdr
+  - 5g
+  - e2-interface
+  - xapp
+  - near-rt-ric
+maintainers:
+  - name: SDR-O-RAN Team
+    email: sdr-oran@example.com
+sources:
+  - https://github.com/sdr-oran/platform
+home: https://sdr-oran.example.com
+icon: https://www.o-ran.org/s/O-RAN-LOGO.png
+
+dependencies:
+  - name: redis
+    version: "17.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+  - name: prometheus
+    version: "25.x.x"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: prometheus.enabled
+  - name: grafana
+    version: "7.x.x"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: grafana.enabled

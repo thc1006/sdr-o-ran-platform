@@ -66,8 +66,8 @@ def test_message_creation():
             snr_db=15.5,
             receive_power_dbm=-75.0,
             agc_locked=True,
-            doppler_shift_hz=12500.0,
-            timing_offset_ns=125
+            doppler_shift_hz=12500.0
+            # ✅ 2025-11-17: Removed invalid field 'timing_offset_ns' (not in proto definition)
         )
 
         print(f"✅ Created IQSampleBatch:")
@@ -91,13 +91,13 @@ def test_message_creation():
         doppler_update = sdr_oran_pb2.DopplerUpdate(
             station_id="test-station",
             doppler_shift_hz=15000.0,
-            doppler_rate_hz_per_sec=250.0
+            doppler_rate_hz_s=250.0
         )
 
         print(f"\n✅ Created DopplerUpdate:")
         print(f"   - Station: {doppler_update.station_id}")
         print(f"   - Doppler Shift: {doppler_update.doppler_shift_hz:.1f} Hz")
-        print(f"   - Doppler Rate: {doppler_update.doppler_rate_hz_per_sec:.1f} Hz/s")
+        print(f"   - Doppler Rate: {doppler_update.doppler_rate_hz_s:.1f} Hz/s")
 
         print()
         return True

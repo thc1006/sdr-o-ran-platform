@@ -1,0 +1,21 @@
+registry:
+  arxiv-mcp-server:
+    ref: ""
+  context7:
+    ref: ""
+  docker:
+    ref: ""
+  dockerhub:
+    ref: ""
+  fetch:
+    ref: ""
+  filesystem:
+    ref: ""
+  github-official:
+    ref: ""
+  kubernetes:
+    ref: ""
+  paper-search:
+    ref: ""
+  playwright:
+    ref: ""
