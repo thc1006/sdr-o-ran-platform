@@ -10,7 +10,7 @@ Creates 5 publication-quality figures:
 4. Power Efficiency (box plots)
 5. Rain Fade Mitigation (grouped bars)
 
-Author: Claude Code
+Author: 蔡秀吉 (thc1006)
 Date: 2025-11-17
 """
 

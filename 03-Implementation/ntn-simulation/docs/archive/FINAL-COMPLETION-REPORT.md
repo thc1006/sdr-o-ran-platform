@@ -489,7 +489,7 @@ kubectl apply -f k8s/
 
 **平台版本**: 3.0 (Week 2 + Week 3 完整)
 
-**開發團隊**: Claude Code AI Agents (16 個專業 agents)
+**開發團隊**: 蔡秀吉 (thc1006)
 
 ---
 

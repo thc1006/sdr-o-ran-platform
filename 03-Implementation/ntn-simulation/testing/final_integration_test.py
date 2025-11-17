@@ -12,7 +12,7 @@ This test validates the complete NTN-O-RAN platform integration:
 6. Performance optimizations
 7. Baseline comparison validation
 
-Author: Claude Code (Week 2 Final Validation)
+Author: 蔡秀吉 (thc1006)
 Date: 2025-11-17
 """
 

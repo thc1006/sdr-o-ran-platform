@@ -499,4 +499,4 @@ python3 rl_power/train_rl_power.py \
 ---
 
 **最後更新**: 2025-11-17
-**Claude Code 開發團隊**
+**開發團隊：蔡秀吉 (thc1006)**

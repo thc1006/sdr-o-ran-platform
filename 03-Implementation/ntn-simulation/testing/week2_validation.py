@@ -11,7 +11,7 @@ Quick validation of all Week 2 deliverables:
 5. Weather integration
 6. Performance optimizations
 
-Author: Claude Code
+Author: 蔡秀吉 (thc1006)
 Date: 2025-11-17
 """
 
