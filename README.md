@@ -2,8 +2,8 @@
 
 **Author**: Hsiu-Chi Tsai (thc1006@ieee.org)
 **Project Type**: Research & Development Platform
-**Last Updated**: 2025-11-12
-**Version**: 3.1.0
+**Last Updated**: 2025-11-17
+**Version**: 3.3.0
 
 [![CI/CD](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Research-blue.svg)](LICENSE)
@@ -150,7 +150,8 @@ curl http://localhost:8000/health
 See comprehensive deployment documentation:
 - [Deployment Guide](docs/deployment/DEPLOYMENT-GUIDE.md)
 - [WSL2 GPU Setup](docs/deployment/DEPLOYMENT-WSL2-GPU.md)
-- [Quick Start Guide](START-HERE.md)
+- [Quick Start - Docker](docs/guides/QUICK-START-DOCKER.md)
+- [Quick Start - Kubernetes](docs/guides/QUICK-START-KUBERNETES.md)
 
 ---
 
@@ -159,7 +160,7 @@ See comprehensive deployment documentation:
 ```
 sdr-o-ran-platform/
 ├── README.md                          # This file
-├── START-HERE.md                      # Quick start guide
+├── CHANGELOG.md                       # Version history and changes
 ├── docker-compose.yml                 # Container orchestration
 ├── pyproject.toml                     # Python project configuration
 ├── CITATION.cff                       # Academic citation format
@@ -256,7 +257,8 @@ sdr-o-ran-platform/
 ## Documentation
 
 ### Essential Guides
-- [Quick Start Guide](START-HERE.md) - Get started in 5 minutes
+- [Quick Start - Docker](docs/guides/QUICK-START-DOCKER.md) - Get started in 5 minutes with Docker
+- [Quick Start - Kubernetes](docs/guides/QUICK-START-KUBERNETES.md) - Get started with Kubernetes deployment
 - [Deployment Guide](docs/deployment/DEPLOYMENT-GUIDE.md) - Comprehensive deployment instructions
 - [WSL2 GPU Setup](docs/deployment/DEPLOYMENT-WSL2-GPU.md) - Windows deployment with GPU acceleration
 

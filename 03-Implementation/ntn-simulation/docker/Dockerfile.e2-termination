@@ -1,0 +1,74 @@
+# Multi-stage build for NTN E2 Termination
+# Stage 1: Builder
+FROM python:3.12-slim as builder
+
+# Set working directory
+WORKDIR /build
+
+# Install system dependencies required for building
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    pkg-config \
+    libopenblas-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Create virtual environment and install dependencies
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Upgrade pip and install dependencies
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir asn1tools redis
+
+# Stage 2: Runtime
+FROM python:3.12-slim
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libopenblas0 \
+    libgomp1 \
+    ca-certificates \
+    curl \
+    dnsutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 e2term
+
+# Set working directory
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Set environment variables
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH="/app:/app/e2_ntn_extension" \
+    LOG_LEVEL=INFO \
+    E2_TERMINATION_PORT=36421 \
+    REDIS_HOST=redis \
+    REDIS_PORT=6379
+
+# Copy application code
+COPY --chown=e2term:e2term . .
+
+# Change to non-root user
+USER e2term
+
+# Expose E2 termination port (3GPP standard)
+EXPOSE 36421
+
+# Health check - verify service is running and can access Redis
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.connect(('127.0.0.1', 36421)); s.close()" || exit 1
+
+# Run the E2 termination service
+ENTRYPOINT ["python"]
+CMD ["-m", "e2_ntn_extension.ntn_e2_bridge"]

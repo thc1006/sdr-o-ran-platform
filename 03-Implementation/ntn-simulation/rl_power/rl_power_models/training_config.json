@@ -1,0 +1,18 @@
+{
+  "episodes": 1500,
+  "batch_size": 128,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "epsilon_start": 1.0,
+  "epsilon_end": 0.1,
+  "epsilon_decay": 0.997,
+  "episode_length": 300,
+  "target_rsrp": -85.0,
+  "rsrp_threshold": -90.0,
+  "eval_episodes": 50,
+  "eval_frequency": 100,
+  "checkpoint_freq": 250,
+  "save_dir": "./rl_power_models",
+  "seed": 42,
+  "verbose": true
+}

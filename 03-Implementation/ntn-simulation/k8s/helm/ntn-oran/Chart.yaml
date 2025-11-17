@@ -1,0 +1,26 @@
+apiVersion: v2
+name: ntn-oran
+description: NTN-O-RAN Platform - Non-Terrestrial Network with O-RAN Integration
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - ntn
+  - oran
+  - satellite
+  - 5g
+  - ran
+  - e2
+
+maintainers:
+  - name: NTN-O-RAN Team
+    email: team@ntn-oran.local
+
+home: https://github.com/ntn-oran/platform
+sources:
+  - https://github.com/ntn-oran/platform
+
+dependencies: []
+
+icon: https://ntn-oran.local/icon.png

@@ -1,0 +1,309 @@
+{
+  "dashboard": {
+    "title": "Satellite Tracking Dashboard",
+    "tags": ["ntn", "satellite", "tracking"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+        "type": "stat",
+        "title": "Total Satellites Tracked",
+        "targets": [
+          {
+            "expr": "satellite_total_tracked",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 5000, "color": "yellow"},
+                {"value": 8000, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+        "type": "stat",
+        "title": "Visible Satellites",
+        "targets": [
+          {
+            "expr": "satellite_visible_count",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+        "type": "stat",
+        "title": "Active Connections",
+        "targets": [
+          {
+            "expr": "satellite_active_connections",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+        "type": "stat",
+        "title": "Handover Rate (per min)",
+        "targets": [
+          {
+            "expr": "rate(satellite_handover_total[1m]) * 60",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "handovers/min",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 10, "color": "yellow"},
+                {"value": 20, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": {"x": 16, "y": 0, "w": 8, "h": 4},
+        "type": "gauge",
+        "title": "Average Elevation Angle",
+        "targets": [
+          {
+            "expr": "avg(satellite_elevation_degrees)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "degree",
+            "min": 0,
+            "max": 90,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 15, "color": "yellow"},
+                {"value": 30, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+        "type": "graph",
+        "title": "Elevation Angles Over Time",
+        "targets": [
+          {
+            "expr": "satellite_elevation_degrees",
+            "legendFormat": "Satellite {{satellite_id}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "degree", "label": "Elevation", "min": 0, "max": 90},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"}
+      },
+      {
+        "id": 7,
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+        "type": "graph",
+        "title": "Doppler Shift",
+        "targets": [
+          {
+            "expr": "satellite_doppler_shift_hz",
+            "legendFormat": "Satellite {{satellite_id}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "hertz", "label": "Doppler Shift"},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"}
+      },
+      {
+        "id": 8,
+        "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+        "type": "graph",
+        "title": "RSRP (Reference Signal Received Power)",
+        "targets": [
+          {
+            "expr": "satellite_rsrp_dbm",
+            "legendFormat": "Satellite {{satellite_id}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "dBm", "label": "RSRP"},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"},
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [-100],
+                "type": "lt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": ["A", "5m", "now"]
+              },
+              "reducer": {
+                "type": "avg"
+              },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "1m",
+          "handler": 1,
+          "name": "Low RSRP Alert",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      },
+      {
+        "id": 9,
+        "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+        "type": "graph",
+        "title": "SINR (Signal-to-Interference-plus-Noise Ratio)",
+        "targets": [
+          {
+            "expr": "satellite_sinr_db",
+            "legendFormat": "Satellite {{satellite_id}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "dB", "label": "SINR"},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"}
+      },
+      {
+        "id": 10,
+        "gridPos": {"x": 0, "y": 20, "w": 24, "h": 6},
+        "type": "graph",
+        "title": "Handover Events",
+        "targets": [
+          {
+            "expr": "rate(satellite_handover_total[5m])",
+            "legendFormat": "Handovers",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(satellite_handover_success_total[5m])",
+            "legendFormat": "Successful Handovers",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(satellite_handover_failure_total[5m])",
+            "legendFormat": "Failed Handovers",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "handovers/s", "label": "Handover Rate"},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"}
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h"]
+    }
+  }
+}

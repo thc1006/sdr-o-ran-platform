@@ -1,0 +1,162 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntn-config
+  namespace: ntn-oran
+  labels:
+    app: ntn-oran
+data:
+  # Logging configuration
+  LOG_LEVEL: "INFO"
+  PYTHONUNBUFFERED: "1"
+
+  # Redis configuration
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_TIMEOUT: "5"
+
+  # E2 Interface configuration
+  E2_TERMINATION_HOST: "e2-termination-service"
+  E2_TERMINATION_PORT: "36421"
+  E2_HTTP_PORT: "8082"
+  E2_SCTP_TIMEOUT: "30"
+
+  # xApp configuration
+  HANDOVER_XAPP_PORT: "8080"
+  POWER_XAPP_PORT: "8081"
+
+  # Satellite configuration
+  SATELLITE_UPDATE_INTERVAL: "60"
+  TLE_CACHE_DIR: "/var/lib/ntn/tle_cache"
+  MAX_SATELLITES: "8805"
+
+  # Weather service configuration
+  WEATHER_SERVICE_PORT: "8083"
+  WEATHER_API_TIMEOUT: "10"
+  WEATHER_CACHE_TTL: "3600"
+
+  # Orbit service configuration
+  ORBIT_SERVICE_PORT: "8084"
+  ORBIT_UPDATE_INTERVAL: "30"
+
+  # Performance targets
+  TARGET_LATENCY_MS: "5.5"
+  TARGET_THROUGHPUT_MPS: "600"
+  MAX_E2_MESSAGE_SIZE: "65536"
+
+  # Health check configuration
+  HEALTH_CHECK_INTERVAL: "30"
+  HEALTH_CHECK_TIMEOUT: "10"
+  HEALTH_CHECK_RETRIES: "3"
+
+  # Monitoring configuration
+  PROMETHEUS_PORT: "9090"
+  METRICS_ENABLED: "true"
+  METRICS_ENDPOINT: "/metrics"
+
+  # ASN.1 configuration
+  ASN1_ENCODING: "PER"
+  ASN1_VALIDATION: "true"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: ntn-oran
+  labels:
+    app: prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'ntn-oran-cluster'
+        environment: 'production'
+
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      - job_name: 'e2-termination'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['e2-termination-service:8082']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            replacement: 'e2-termination'
+
+      - job_name: 'handover-xapp'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['handover-xapp-service:8080']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            replacement: 'handover-xapp'
+
+      - job_name: 'power-xapp'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['power-xapp-service:8081']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            replacement: 'power-xapp'
+
+      - job_name: 'weather-service'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['weather-service:8083']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            replacement: 'weather-service'
+
+      - job_name: 'orbit-service'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['orbit-service:8084']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            replacement: 'orbit-service'
+
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - ntn-oran
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: []
+
+    rule_files:
+      # - "alerts/*.yml"

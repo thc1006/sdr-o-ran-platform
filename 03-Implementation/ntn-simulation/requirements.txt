@@ -22,5 +22,13 @@ pandas>=2.1.0
 scipy>=1.11.0
 networkx>=3.2.0
 
+# Weather API Integration
+aiohttp>=3.9.0
+requests>=2.31.0
+
+# Satellite Orbit Propagation
+sgp4>=2.23
+skyfield>=1.48
+
 # OpenNTN dependencies (will be added after cloning)
 # See: https://github.com/ant-uni-bremen/OpenNTN

@@ -1,0 +1,200 @@
+{
+  "dashboard": {
+    "title": "E2 Interface Metrics",
+    "tags": ["ntn", "e2", "interface"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "type": "graph",
+        "title": "E2 Indication Message Types",
+        "targets": [
+          {
+            "expr": "rate(e2_indication_messages_total{message_type=\"RIC_INDICATION\"}[1m])",
+            "legendFormat": "RIC Indication",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(e2_indication_messages_total{message_type=\"RAN_STATUS\"}[1m])",
+            "legendFormat": "RAN Status",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(e2_indication_messages_total{message_type=\"UE_MEASUREMENT\"}[1m])",
+            "legendFormat": "UE Measurement",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "msg/s", "label": "Message Rate"},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"}
+      },
+      {
+        "id": 2,
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "type": "graph",
+        "title": "E2 Control Actions",
+        "targets": [
+          {
+            "expr": "rate(e2_control_actions_total{action=\"handover\"}[1m])",
+            "legendFormat": "Handover Commands",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(e2_control_actions_total{action=\"power_adjust\"}[1m])",
+            "legendFormat": "Power Adjustments",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(e2_control_actions_total{action=\"beam_switch\"}[1m])",
+            "legendFormat": "Beam Switching",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "actions/s", "label": "Control Actions"},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"}
+      },
+      {
+        "id": 3,
+        "gridPos": {"x": 0, "y": 8, "w": 8, "h": 6},
+        "type": "graph",
+        "title": "ASN.1 Encoding Time",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(e2_asn1_encoding_duration_ms_bucket[5m]))",
+            "legendFormat": "p95 Encoding Time",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(e2_asn1_encoding_duration_ms_bucket[5m]))",
+            "legendFormat": "p99 Encoding Time",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Encoding Time"},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"}
+      },
+      {
+        "id": 4,
+        "gridPos": {"x": 8, "y": 8, "w": 8, "h": 6},
+        "type": "graph",
+        "title": "Message Size Distribution",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(e2_message_size_bytes_bucket[5m]))",
+            "legendFormat": "p50 Message Size",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(e2_message_size_bytes_bucket[5m]))",
+            "legendFormat": "p95 Message Size",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(e2_message_size_bytes_bucket[5m]))",
+            "legendFormat": "p99 Message Size",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "bytes", "label": "Message Size"},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"}
+      },
+      {
+        "id": 5,
+        "gridPos": {"x": 16, "y": 8, "w": 8, "h": 6},
+        "type": "stat",
+        "title": "E2 Connection Status",
+        "targets": [
+          {
+            "expr": "sum(e2_connected_nodes)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "gridPos": {"x": 0, "y": 14, "w": 12, "h": 6},
+        "type": "table",
+        "title": "E2 Error Types",
+        "targets": [
+          {
+            "expr": "topk(10, sum by (error_type) (rate(e2_errors_total[5m])))",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {},
+              "renameByName": {
+                "error_type": "Error Type",
+                "Value": "Rate (errors/s)"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "gridPos": {"x": 12, "y": 14, "w": 12, "h": 6},
+        "type": "graph",
+        "title": "E2 Subscription Success Rate",
+        "targets": [
+          {
+            "expr": "rate(e2_subscription_success_total[5m]) / (rate(e2_subscription_success_total[5m]) + rate(e2_subscription_failure_total[5m])) * 100",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Success Rate", "min": 0, "max": 100},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"}
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h"]
+    }
+  }
+}

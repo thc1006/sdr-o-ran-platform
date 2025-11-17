@@ -1,0 +1,184 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  namespace: ntn-oran
+  labels:
+    app: logstash
+data:
+  logstash.yml: |
+    http.host: "0.0.0.0"
+    path.config: /usr/share/logstash/pipeline
+    xpack.monitoring.enabled: false
+
+  logstash.conf: |
+    input {
+      beats {
+        port => 5044
+      }
+    }
+
+    filter {
+      if [kubernetes][namespace] == "ntn-oran" {
+        json {
+          source => "message"
+          skip_on_invalid_json => true
+        }
+
+        # Parse log level
+        grok {
+          match => {
+            "message" => "%{LOGLEVEL:log_level}"
+          }
+        }
+
+        # Add custom fields
+        mutate {
+          add_field => {
+            "[@metadata][index_prefix]" => "ntn-oran-logs"
+          }
+        }
+
+        # Parse E2 messages
+        if [app] == "e2-termination" {
+          grok {
+            match => {
+              "message" => "E2 %{WORD:e2_message_type}"
+            }
+          }
+        }
+
+        # Parse xApp logs
+        if [component] == "xapp" {
+          grok {
+            match => {
+              "message" => "xApp %{WORD:xapp_action}"
+            }
+          }
+        }
+      }
+
+      # Remove unnecessary fields
+      mutate {
+        remove_field => ["agent", "ecs", "input", "host"]
+      }
+    }
+
+    output {
+      elasticsearch {
+        hosts => ["elasticsearch:9200"]
+        index => "%{[@metadata][index_prefix]}-%{+YYYY.MM.dd}"
+        manage_template => true
+        template_name => "ntn-oran-logs"
+      }
+
+      # Debug output (can be disabled in production)
+      stdout {
+        codec => rubydebug
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: ntn-oran
+  labels:
+    app: logstash
+    component: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash
+  template:
+    metadata:
+      labels:
+        app: logstash
+        component: logging
+    spec:
+      containers:
+      - name: logstash
+        image: docker.elastic.co/logstash/logstash:8.11.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: beats
+          containerPort: 5044
+          protocol: TCP
+        - name: http
+          containerPort: 9600
+          protocol: TCP
+        env:
+        - name: LS_JAVA_OPTS
+          value: "-Xms512m -Xmx512m"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9600
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 9600
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+        - name: config
+          mountPath: /usr/share/logstash/config/logstash.yml
+          subPath: logstash.yml
+        - name: pipeline
+          mountPath: /usr/share/logstash/pipeline/logstash.conf
+          subPath: logstash.conf
+      volumes:
+      - name: config
+        configMap:
+          name: logstash-config
+          items:
+          - key: logstash.yml
+            path: logstash.yml
+      - name: pipeline
+        configMap:
+          name: logstash-config
+          items:
+          - key: logstash.conf
+            path: logstash.conf
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: ntn-oran
+  labels:
+    app: logstash
+    component: logging
+spec:
+  type: ClusterIP
+  selector:
+    app: logstash
+  ports:
+  - name: beats
+    port: 5044
+    targetPort: 5044
+    protocol: TCP
+  - name: http
+    port: 9600
+    targetPort: 9600
+    protocol: TCP
+  sessionAffinity: None

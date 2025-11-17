@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-service
+  namespace: ntn-oran
+  labels:
+    app: weather-service
+    component: external-service
+    tier: integration
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weather-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: weather-service
+        component: external-service
+        tier: integration
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8083"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: weather-service
+        image: ntn/weather-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8083
+          protocol: TCP
+        env:
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: LOG_LEVEL
+        - name: PYTHONUNBUFFERED
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: PYTHONUNBUFFERED
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: REDIS_PORT
+        - name: WEATHER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ntn-secrets
+              key: WEATHER_API_KEY
+              optional: true
+        - name: WEATHER_CACHE_TTL
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: WEATHER_CACHE_TTL
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8083
+            scheme: HTTP
+          initialDelaySeconds: 20
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8083
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+        - name: logs
+          mountPath: /var/log/ntn
+        securityContext:
+          runAsNonRoot: false
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: logs
+        emptyDir: {}
+      restartPolicy: Always

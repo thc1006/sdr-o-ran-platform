@@ -84,4 +84,16 @@ certs/*.srl
 htmlcov/
 .coverage
 .pytest_cache/
+
+# TLE cache files
+tle_cache/
+
+# Test results and demo results
+test_results/
+demo_results/
+
+# RL models and checkpoints (already covered by *.pth above, but being explicit)
+rl_power_models/
+
+# Project-specific IDE settings
 CLAUDE.md

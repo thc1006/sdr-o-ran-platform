@@ -1,0 +1,299 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: docker.io
+  IMAGE_PREFIX: ntn
+  KUBERNETES_NAMESPACE: ntn-oran
+
+jobs:
+  lint-and-validate:
+    name: Lint and Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install pylint flake8 black isort
+
+      - name: Lint Python code
+        run: |
+          find . -name "*.py" -not -path "./venv/*" | xargs pylint --disable=all --enable=E,F || true
+          find . -name "*.py" -not -path "./venv/*" | xargs flake8 --max-line-length=120 || true
+
+      - name: Validate Kubernetes manifests
+        run: |
+          # Install kubeval
+          wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          tar xf kubeval-linux-amd64.tar.gz
+          sudo mv kubeval /usr/local/bin
+
+          # Validate all YAML files
+          find k8s -name "*.yaml" -not -name "*.template" | xargs kubeval --ignore-missing-schemas || true
+
+      - name: Validate Helm chart
+        run: |
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+          # Lint Helm chart
+          helm lint k8s/helm/ntn-oran
+
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    strategy:
+      matrix:
+        service:
+          - e2-termination
+          - handover-xapp
+          - power-xapp
+          - weather-service
+          - orbit-service
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./docker/Dockerfile.${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:buildcache,mode=max
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio
+
+      - name: Run unit tests
+        run: |
+          pytest testing/ -v --cov --cov-report=xml --cov-report=html
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/staging' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging.ntn-oran.local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+          kubectl config use-context staging
+
+      - name: Create namespace
+        run: |
+          kubectl create namespace ${{ env.KUBERNETES_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install ntn-oran ./k8s/helm/ntn-oran \
+            --namespace ${{ env.KUBERNETES_NAMESPACE }} \
+            --set global.environment=staging \
+            --set e2Termination.image.tag=${{ github.sha }} \
+            --set handoverXapp.image.tag=${{ github.sha }} \
+            --set powerXapp.image.tag=${{ github.sha }} \
+            --set weatherService.image.tag=${{ github.sha }} \
+            --set orbitService.image.tag=${{ github.sha }} \
+            --wait --timeout 10m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/e2-termination -n ${{ env.KUBERNETES_NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/handover-xapp -n ${{ env.KUBERNETES_NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/power-xapp -n ${{ env.KUBERNETES_NAMESPACE }} --timeout=5m
+
+      - name: Run smoke tests
+        run: |
+          kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }}
+          kubectl get services -n ${{ env.KUBERNETES_NAMESPACE }}
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    environment:
+      name: production
+      url: https://ntn-oran.local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+          kubectl config use-context production
+
+      - name: Create namespace
+        run: |
+          kubectl create namespace ${{ env.KUBERNETES_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install ntn-oran ./k8s/helm/ntn-oran \
+            --namespace ${{ env.KUBERNETES_NAMESPACE }} \
+            --set global.environment=production \
+            --set e2Termination.image.tag=${{ github.sha }} \
+            --set handoverXapp.image.tag=${{ github.sha }} \
+            --set powerXapp.image.tag=${{ github.sha }} \
+            --set weatherService.image.tag=${{ github.sha }} \
+            --set orbitService.image.tag=${{ github.sha }} \
+            --wait --timeout 15m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/e2-termination -n ${{ env.KUBERNETES_NAMESPACE }} --timeout=10m
+          kubectl rollout status deployment/handover-xapp -n ${{ env.KUBERNETES_NAMESPACE }} --timeout=10m
+          kubectl rollout status deployment/power-xapp -n ${{ env.KUBERNETES_NAMESPACE }} --timeout=10m
+
+      - name: Run health checks
+        run: |
+          kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }}
+          kubectl get services -n ${{ env.KUBERNETES_NAMESPACE }}
+
+          # Wait for services to be ready
+          sleep 30
+
+          # Check health endpoints
+          E2_IP=$(kubectl get svc e2-termination-service -n ${{ env.KUBERNETES_NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          curl -f http://${E2_IP}:8082/health || exit 1
+
+      - name: Notify deployment
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          text: 'NTN-O-RAN Production Deployment: ${{ job.status }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: failure()
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+
+      - name: Rollback Helm release
+        run: |
+          helm rollback ntn-oran -n ${{ env.KUBERNETES_NAMESPACE }}
+
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'warning'
+          text: 'NTN-O-RAN Deployment rolled back due to failure'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

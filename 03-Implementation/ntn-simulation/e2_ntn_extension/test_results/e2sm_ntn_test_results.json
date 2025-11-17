@@ -1,0 +1,341 @@
+{
+  "summary": {
+    "total_tests": 26,
+    "passed": 19,
+    "failed": 7,
+    "pass_rate": "73.1%",
+    "duration_seconds": 0.24,
+    "timestamp": "2025-11-17T06:23:49.108632"
+  },
+  "results": [
+    {
+      "scenario": "Scenario 1",
+      "test_name": "Low elevation detected (< 15\u00b0)",
+      "passed": false,
+      "timestamp": "2025-11-17T06:23:49.103922",
+      "details": {
+        "elevation_angle": 64.45387034464902,
+        "threshold": 15.0
+      },
+      "metrics": {
+        "elevation_angle": 64.45387034464902
+      }
+    },
+    {
+      "scenario": "Scenario 1",
+      "test_name": "High path loss at low elevation (> 170 dB)",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.103933",
+      "details": {
+        "path_loss_db": 175.95865148953055,
+        "threshold": 170.0
+      },
+      "metrics": {
+        "path_loss_db": 175.95865148953055
+      }
+    },
+    {
+      "scenario": "Scenario 1",
+      "test_name": "Low link margin warning (< 5 dB)",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.103936",
+      "details": {
+        "link_margin_db": 0.0,
+        "threshold": 5.0
+      },
+      "metrics": {
+        "link_margin_db": 0.0
+      }
+    },
+    {
+      "scenario": "Scenario 1",
+      "test_name": "Handover predicted for low elevation",
+      "passed": false,
+      "timestamp": "2025-11-17T06:23:49.103937",
+      "details": {
+        "time_to_handover_sec": 1966.2222726520608
+      },
+      "metrics": {
+        "time_to_handover_sec": 1966.2222726520608
+      }
+    },
+    {
+      "scenario": "Scenario 1",
+      "test_name": "E2 Indication message format valid",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.103954",
+      "details": {
+        "message_valid": true
+      },
+      "metrics": {}
+    },
+    {
+      "scenario": "Scenario 2",
+      "test_name": "Optimal elevation detected (> 45\u00b0)",
+      "passed": false,
+      "timestamp": "2025-11-17T06:23:49.104768",
+      "details": {
+        "elevation_angle": 0.0,
+        "threshold": 45.0
+      },
+      "metrics": {
+        "elevation_angle": 0.0
+      }
+    },
+    {
+      "scenario": "Scenario 2",
+      "test_name": "Low path loss at high elevation (< 165 dB)",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.104773",
+      "details": {
+        "path_loss_db": 160.19426752518615,
+        "threshold": 165.0
+      },
+      "metrics": {
+        "path_loss_db": 160.19426752518615
+      }
+    },
+    {
+      "scenario": "Scenario 2",
+      "test_name": "Good link margin (> 20 dB)",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.104775",
+      "details": {
+        "link_margin_db": 35.0,
+        "threshold": 20.0
+      },
+      "metrics": {
+        "link_margin_db": 35.0
+      }
+    },
+    {
+      "scenario": "Scenario 2",
+      "test_name": "High CQI indicating good channel (> 10)",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.104777",
+      "details": {
+        "cqi": 13,
+        "threshold": 10
+      },
+      "metrics": {
+        "cqi": 13
+      }
+    },
+    {
+      "scenario": "Scenario 2",
+      "test_name": "No immediate handover needed (> 300 sec)",
+      "passed": false,
+      "timestamp": "2025-11-17T06:23:49.104778",
+      "details": {
+        "time_to_handover_sec": 13.962634015954634
+      },
+      "metrics": {
+        "time_to_handover_sec": 13.962634015954634
+      }
+    },
+    {
+      "scenario": "Scenario 3",
+      "test_name": "Handover time predicted",
+      "passed": false,
+      "timestamp": "2025-11-17T06:23:49.105516",
+      "details": {
+        "time_to_handover_sec": 2711.7396574266213
+      },
+      "metrics": {
+        "time_to_handover_sec": 2711.7396574266213
+      }
+    },
+    {
+      "scenario": "Scenario 3",
+      "test_name": "Next satellite identified",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.105521",
+      "details": {
+        "next_satellite_id": "SAT-LEO-002"
+      },
+      "metrics": {}
+    },
+    {
+      "scenario": "Scenario 3",
+      "test_name": "High handover probability (> 0.8)",
+      "passed": false,
+      "timestamp": "2025-11-17T06:23:49.105522",
+      "details": {
+        "handover_probability": 0.5
+      },
+      "metrics": {
+        "handover_probability": 0.5
+      }
+    },
+    {
+      "scenario": "Scenario 3",
+      "test_name": "Handover event trigger created",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.105531",
+      "details": {
+        "event_trigger_size_bytes": 74
+      },
+      "metrics": {}
+    },
+    {
+      "scenario": "Scenario 3",
+      "test_name": "Bridge handover prediction works",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.105552",
+      "details": {
+        "prediction": {
+          "ue_id": "UE-003",
+          "current_satellite": "SAT-LEO-001",
+          "next_satellite": "SAT-LEO-002",
+          "time_to_handover_sec": 13.962634015954634,
+          "handover_probability": 0.95,
+          "current_elevation": 0.0
+        }
+      },
+      "metrics": {}
+    },
+    {
+      "scenario": "Scenario 4a",
+      "test_name": "Excessive link margin detected (> 30 dB)",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.106258",
+      "details": {
+        "link_margin_db": 50.0
+      },
+      "metrics": {
+        "link_margin_db": 50.0
+      }
+    },
+    {
+      "scenario": "Scenario 4a",
+      "test_name": "Power reduction recommended",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.106264",
+      "details": {
+        "target_tx_power_dbm": 2.0,
+        "power_adjustment_db": -21.0,
+        "reason": "LINK_MARGIN_EXCESSIVE",
+        "current_margin_db": 50.0,
+        "target_margin_db": 8.0
+      },
+      "metrics": {
+        "power_adjustment_db": -21.0
+      }
+    },
+    {
+      "scenario": "Scenario 4a",
+      "test_name": "Power control message created",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.106275",
+      "details": {
+        "control_message_size_bytes": 211
+      },
+      "metrics": {}
+    },
+    {
+      "scenario": "Scenario 4a",
+      "test_name": "Power control action executed",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.106278",
+      "details": {
+        "success": true,
+        "action": "POWER_CONTROL",
+        "ue_id": "UE-004",
+        "new_power_dbm": 2.0,
+        "message": "Power adjusted to 2.0 dBm"
+      },
+      "metrics": {}
+    },
+    {
+      "scenario": "Scenario 4b",
+      "test_name": "Power increase recommended for low margin",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.106347",
+      "details": {
+        "target_tx_power_dbm": 23.0,
+        "power_adjustment_db": 3.0,
+        "reason": "LINK_MARGIN_LOW",
+        "current_margin_db": 2.0,
+        "target_margin_db": 8.0
+      },
+      "metrics": {
+        "power_adjustment_db": 3.0
+      }
+    },
+    {
+      "scenario": "Scenario 5 - LEO",
+      "test_name": "LEO propagation delay (< 10 ms)",
+      "passed": false,
+      "timestamp": "2025-11-17T06:23:49.107074",
+      "details": {
+        "propagation_delay_ms": 17.13107010199045
+      },
+      "metrics": {
+        "propagation_delay_ms": 17.13107010199045
+      }
+    },
+    {
+      "scenario": "Scenario 5 - LEO",
+      "test_name": "LEO Doppler shift significant (> 1000 Hz)",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.107078",
+      "details": {
+        "doppler_shift_hz": 14748.478491584601
+      },
+      "metrics": {
+        "doppler_shift_hz": 14748.478491584601
+      }
+    },
+    {
+      "scenario": "Scenario 5 - MEO",
+      "test_name": "MEO propagation delay (10-100 ms)",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.107833",
+      "details": {
+        "propagation_delay_ms": 42.33732829650089
+      },
+      "metrics": {
+        "propagation_delay_ms": 42.33732829650089
+      }
+    },
+    {
+      "scenario": "Scenario 5 - GEO",
+      "test_name": "GEO propagation delay (> 100 ms)",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.108557",
+      "details": {
+        "propagation_delay_ms": 126.48940641482226
+      },
+      "metrics": {
+        "propagation_delay_ms": 126.48940641482226
+      }
+    },
+    {
+      "scenario": "Scenario 5 - GEO",
+      "test_name": "GEO Doppler shift minimal (< 100 Hz)",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.108561",
+      "details": {
+        "doppler_shift_hz": 0.0
+      },
+      "metrics": {
+        "doppler_shift_hz": 0.0
+      }
+    },
+    {
+      "scenario": "Scenario 5",
+      "test_name": "Statistics collection works",
+      "passed": true,
+      "timestamp": "2025-11-17T06:23:49.108565",
+      "details": {
+        "orbit_type": "LEO",
+        "carrier_frequency_ghz": 2.1,
+        "satellite_altitude_km": 600.0,
+        "registered_ues": 1,
+        "current_time": 0.0,
+        "total_handovers": 0
+      },
+      "metrics": {}
+    }
+  ]
+}

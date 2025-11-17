@@ -1,0 +1,152 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ntn-oran-ingress
+  namespace: ntn-oran
+  labels:
+    app: ntn-oran
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - ntn-oran.local
+    - e2.ntn-oran.local
+    - handover.ntn-oran.local
+    - power.ntn-oran.local
+    - weather.ntn-oran.local
+    - orbit.ntn-oran.local
+    - grafana.ntn-oran.local
+    - prometheus.ntn-oran.local
+    secretName: ntn-tls
+  rules:
+  - host: e2.ntn-oran.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: e2-termination-service
+            port:
+              number: 8082
+  - host: handover.ntn-oran.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: handover-xapp-service
+            port:
+              number: 8080
+  - host: power.ntn-oran.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: power-xapp-service
+            port:
+              number: 8081
+  - host: weather.ntn-oran.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: weather-service
+            port:
+              number: 8083
+  - host: orbit.ntn-oran.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: orbit-service
+            port:
+              number: 8084
+  - host: grafana.ntn-oran.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana-service
+            port:
+              number: 3000
+  - host: prometheus.ntn-oran.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus-service
+            port:
+              number: 9090
+  - host: ntn-oran.local
+    http:
+      paths:
+      - path: /e2
+        pathType: Prefix
+        backend:
+          service:
+            name: e2-termination-service
+            port:
+              number: 8082
+      - path: /handover
+        pathType: Prefix
+        backend:
+          service:
+            name: handover-xapp-service
+            port:
+              number: 8080
+      - path: /power
+        pathType: Prefix
+        backend:
+          service:
+            name: power-xapp-service
+            port:
+              number: 8081
+      - path: /weather
+        pathType: Prefix
+        backend:
+          service:
+            name: weather-service
+            port:
+              number: 8083
+      - path: /orbit
+        pathType: Prefix
+        backend:
+          service:
+            name: orbit-service
+            port:
+              number: 8084
+      - path: /grafana
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana-service
+            port:
+              number: 3000
+      - path: /prometheus
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus-service
+            port:
+              number: 9090

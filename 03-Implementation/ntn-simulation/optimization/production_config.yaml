@@ -1,0 +1,418 @@
+# NTN-O-RAN Platform Production Configuration
+# ============================================
+#
+# Optimized configuration for maximum performance and production deployment
+#
+# Author: Performance Optimization & Profiling Specialist
+# Date: 2025-11-17
+
+# ==============================================================================
+# PERFORMANCE OPTIMIZATION SETTINGS
+# ==============================================================================
+
+performance:
+  # SGP4 Orbit Propagation Optimization
+  sgp4:
+    # Enable rotation matrix caching for ECI→ECEF transformations
+    # Provides ~40% speedup for repeated calculations
+    cache_rotation_matrices: true
+
+    # Cache size (number of rotation matrices to keep)
+    # Higher values improve hit rate but increase memory
+    cache_max_size: 1000
+
+    # Cache TTL in seconds (5 minutes recommended)
+    cache_ttl_sec: 300
+
+    # Batch size for multi-UE propagation
+    # Optimize based on number of concurrent UEs
+    batch_size: 100
+
+    # Number of worker processes for parallel propagation
+    # Set to number of CPU cores (default: auto-detect)
+    num_workers: 4
+
+    # Use float32 instead of float64 for coordinates
+    # Reduces memory by 50% with acceptable precision loss
+    use_optimized_dtypes: true
+
+  # ASN.1 PER Encoding Optimization
+  asn1:
+    # Pre-compile ASN.1 schemas at startup (avoid runtime compilation)
+    precompile_schemas: true
+
+    # Enable buffer pooling for encoded messages
+    # Reduces allocation overhead by reusing buffers
+    buffer_pooling: true
+
+    # Buffer pool size (number of buffers to maintain)
+    buffer_pool_size: 1000
+
+    # Buffer size in bytes (match average message size)
+    buffer_size_bytes: 1024
+
+    # Reuse encoder objects (object pooling)
+    reuse_encoders: true
+
+    # Encoder pool size
+    encoder_pool_size: 100
+
+    # Batch encoding size (encode multiple messages together)
+    batch_encoding_size: 50
+
+  # Weather Calculation (ITU-R P.618) Optimization
+  weather:
+    # Cache duration for weather calculations (minutes)
+    # Increased from 5min to 15min for better cache hit rate
+    cache_duration_minutes: 15
+
+    # Enable location-based cache clustering
+    # Groups nearby locations (within 0.1° precision)
+    cache_clustering: true
+
+    # Cluster precision in degrees
+    cluster_precision_deg: 0.1
+
+    # Enable batch requests for multiple UEs
+    batch_requests: true
+
+    # Batch size for weather calculations
+    batch_size: 10
+
+    # Async connection pooling for weather API calls
+    async_pool_size: 10
+
+    # Maximum cache size (number of location entries)
+    cache_max_size: 1000
+
+  # E2 Interface Optimization
+  e2_interface:
+    # SCTP connection pooling
+    connection_pool_size: 50
+
+    # Connection pool timeout (seconds)
+    connection_timeout_sec: 30
+
+    # Enable message batching (combine multiple UE indications)
+    message_batching: true
+
+    # Batch size (messages per batch)
+    batch_size: 50
+
+    # Batch timeout (ms) - send partial batch after timeout
+    batch_timeout_ms: 100
+
+    # Enable zero-copy buffer operations
+    zero_copy_buffers: true
+
+    # Send buffer size (bytes)
+    send_buffer_size: 262144  # 256 KB
+
+    # Receive buffer size (bytes)
+    recv_buffer_size: 262144  # 256 KB
+
+  # Redis/Database Optimization
+  redis:
+    # Enable command pipelining
+    pipeline_commands: true
+
+    # Pipeline batch size
+    pipeline_batch_size: 100
+
+    # Connection pool size
+    connection_pool_size: 20
+
+    # Connection pool timeout (seconds)
+    connection_timeout_sec: 10
+
+    # Enable connection pooling
+    enable_connection_pooling: true
+
+    # Max connections per pool
+    max_connections: 50
+
+    # Socket keepalive
+    socket_keepalive: true
+
+    # Socket keepalive interval (seconds)
+    socket_keepalive_interval: 30
+
+  # Parallel Processing
+  parallel_processing:
+    # Enable parallel UE processing
+    enabled: true
+
+    # Number of worker processes (0 = auto-detect CPU cores)
+    num_workers: 0
+
+    # UEs per worker batch
+    ues_per_batch: 25
+
+    # Worker process timeout (seconds)
+    worker_timeout_sec: 60
+
+    # Enable multiprocessing for CPU-bound tasks
+    use_multiprocessing: true
+
+    # Enable threading for I/O-bound tasks
+    use_threading: true
+
+    # Thread pool size
+    thread_pool_size: 10
+
+  # Memory Optimization
+  memory:
+    # Enable __slots__ for dataclasses
+    use_slots: true
+
+    # Enable object pooling
+    object_pooling: true
+
+    # Object pool sizes
+    geometry_pool_size: 100
+    channel_quality_pool_size: 100
+
+    # Enable buffer pooling
+    buffer_pooling: true
+
+    # Buffer pool size
+    buffer_pool_size: 100
+
+    # Use optimized numpy dtypes (float32 instead of float64)
+    optimize_numpy_dtypes: true
+
+    # Garbage collection tuning
+    gc_threshold_gen0: 10000  # Increase from default 700
+    gc_threshold_gen1: 20
+    gc_threshold_gen2: 20
+
+    # Force GC every N operations (0 = disabled)
+    force_gc_every_n_ops: 0
+
+# ==============================================================================
+# SYSTEM CONFIGURATION
+# ==============================================================================
+
+system:
+  # Logging
+  logging:
+    level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    file: "/var/log/ntn-oran/platform.log"
+    max_file_size_mb: 100
+    backup_count: 5
+
+  # Monitoring
+  monitoring:
+    enabled: true
+    metrics_port: 9090  # Prometheus metrics
+    health_check_port: 8080
+    metrics_interval_sec: 60
+
+  # Resource Limits
+  resources:
+    max_memory_mb: 2048  # 2 GB
+    max_cpu_percent: 80
+    max_open_files: 10000
+    max_threads: 200
+
+# ==============================================================================
+# RIC INTEGRATION CONFIGURATION
+# ==============================================================================
+
+ric:
+  # E2 Termination
+  e2_termination:
+    ip: "127.0.0.1"
+    port: 36421
+    sctp_streams: 2
+    reconnect_interval_sec: 5
+    max_reconnect_attempts: 10
+
+  # E2SM-NTN Service Model
+  e2sm_ntn:
+    ran_function_id: 200
+    ran_function_revision: 1
+    encoding: "asn1"  # "json" or "asn1"
+
+    # Event triggers
+    default_reporting_period_ms: 1000
+    min_reporting_period_ms: 100
+    max_reporting_period_ms: 10000
+
+  # xApp Integration
+  xapp:
+    base_url: "http://localhost:8080"
+    api_version: "v1"
+    timeout_sec: 30
+    retry_attempts: 3
+
+# ==============================================================================
+# NTN SPECIFIC CONFIGURATION
+# ==============================================================================
+
+ntn:
+  # Satellite Constellation
+  constellation:
+    name: "Starlink"
+    orbit_type: "LEO"
+    min_elevation_deg: 10.0
+
+    # TLE Update
+    tle_update_interval_hours: 24
+    tle_cache_path: "/var/cache/ntn-oran/tle"
+    tle_max_age_days: 7
+
+  # Channel Model
+  channel:
+    carrier_frequency_ghz: 20.0  # Ka-band
+    bandwidth_mhz: 100
+    polarization: "circular"
+
+    # Impairments
+    enable_doppler: true
+    enable_rain_attenuation: true
+    enable_atmospheric_loss: true
+
+  # Link Budget
+  link_budget:
+    satellite_eirp_dbw: 55.0
+    ue_g_t_db_k: -10.0
+    implementation_loss_db: 2.0
+    required_snr_db: 8.0
+
+# ==============================================================================
+# SCALABILITY CONFIGURATION
+# ==============================================================================
+
+scalability:
+  # UE Scaling
+  max_ues: 10000
+  ues_per_satellite: 100
+
+  # Load Balancing
+  load_balancing:
+    enabled: true
+    strategy: "round_robin"  # round_robin, least_connections, weighted
+    health_check_interval_sec: 10
+
+  # Auto-scaling
+  auto_scaling:
+    enabled: true
+    min_workers: 2
+    max_workers: 16
+    scale_up_threshold_percent: 80
+    scale_down_threshold_percent: 20
+    cooldown_period_sec: 300
+
+# ==============================================================================
+# QUALITY OF SERVICE (QoS)
+# ==============================================================================
+
+qos:
+  # Latency Targets
+  latency:
+    target_e2e_ms: 5.0
+    max_e2e_ms: 10.0
+    target_propagation_ms: 0.02
+    target_encoding_ms: 0.02
+
+  # Throughput Targets
+  throughput:
+    target_msgs_per_sec: 500
+    max_msgs_per_sec: 1000
+    target_ues_per_sec: 100
+
+  # Reliability
+  reliability:
+    max_error_rate_percent: 1.0
+    max_packet_loss_percent: 0.5
+    max_jitter_ms: 2.0
+
+# ==============================================================================
+# PRODUCTION DEPLOYMENT
+# ==============================================================================
+
+deployment:
+  # Environment
+  environment: "production"  # development, staging, production
+
+  # High Availability
+  ha:
+    enabled: true
+    mode: "active-active"  # active-passive, active-active
+    heartbeat_interval_sec: 5
+    failover_timeout_sec: 30
+
+  # Backup & Recovery
+  backup:
+    enabled: true
+    interval_hours: 24
+    retention_days: 30
+    path: "/var/backup/ntn-oran"
+
+  # Security
+  security:
+    tls_enabled: true
+    tls_cert_path: "/etc/ntn-oran/certs/server.crt"
+    tls_key_path: "/etc/ntn-oran/certs/server.key"
+    require_client_cert: false
+    allowed_ips: []  # Empty = allow all
+
+# ==============================================================================
+# BENCHMARKING & PROFILING
+# ==============================================================================
+
+profiling:
+  # Enable profiling in production (for troubleshooting)
+  enabled: false
+
+  # Profiling mode
+  mode: "sampling"  # sampling, instrumentation
+
+  # Sample rate (percent of operations to profile)
+  sample_rate_percent: 1.0
+
+  # Profiling output
+  output_path: "/var/log/ntn-oran/profiling"
+
+  # Flamegraph generation
+  generate_flamegraph: false
+
+  # Memory profiling
+  memory_profiling: false
+  memory_snapshot_interval_sec: 300
+
+# ==============================================================================
+# NOTES
+# ==============================================================================
+#
+# Tuning Guidelines:
+# ------------------
+# 1. SGP4 cache_max_size: Increase for constellations with many satellites
+# 2. ASN.1 buffer_pool_size: Match expected peak message rate × batch_timeout
+# 3. Weather cache_duration: Balance freshness vs performance (15min recommended)
+# 4. E2 batch_size: Optimize based on network MTU and latency requirements
+# 5. Parallel num_workers: Set to CPU cores for CPU-bound workloads
+# 6. Memory pools: Size based on peak concurrent UEs
+#
+# Production Checklist:
+# ---------------------
+# [ ] Verify TLE data availability and update frequency
+# [ ] Configure Redis connection pool based on load
+# [ ] Set appropriate resource limits (memory, CPU)
+# [ ] Enable monitoring and metrics collection
+# [ ] Configure log rotation and retention
+# [ ] Test failover and recovery procedures
+# [ ] Benchmark under expected production load
+# [ ] Verify E2 connectivity to production RIC
+#
+# Performance Targets (for reference):
+# ------------------------------------
+# - E2E Latency: <5ms (target), <10ms (max)
+# - Throughput: >500 msg/sec (target), >1000 msg/sec (max)
+# - SGP4 Propagation: <0.02ms per UE
+# - Weather Calculation: <0.03ms per UE (with caching)
+# - ASN.1 Encoding: <0.02ms per message
+# - Memory per 100 UEs: <200MB
+# - CPU per 1000 UEs: <80% (4-core system)

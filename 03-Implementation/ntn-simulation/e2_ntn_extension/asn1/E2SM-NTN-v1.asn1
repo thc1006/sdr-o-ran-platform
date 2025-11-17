@@ -1,0 +1,396 @@
+-- **************************************************************
+--
+-- E2SM-NTN v1.0 - E2 Service Model for Non-Terrestrial Networks
+-- Based on O-RAN Alliance E2SM framework (E2AP v3.0)
+-- ASN.1 Schema Definition using Packed Encoding Rules (PER)
+--
+-- **************************************************************
+
+E2SM-NTN-IEs DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- **************************************************************
+-- Constants
+-- **************************************************************
+
+maxnoofRICStyles INTEGER ::= 16
+maxnoofNTNKPMs INTEGER ::= 64
+maxnoofSatellites INTEGER ::= 32
+maxnoofBeams INTEGER ::= 256
+
+-- **************************************************************
+-- Common Data Types
+-- **************************************************************
+
+SatelliteID ::= PrintableString (SIZE(1..32))
+
+OrbitType ::= ENUMERATED {
+    leo(0),
+    meo(1),
+    geo(2),
+    ...
+}
+
+BeamID ::= INTEGER (1..256)
+
+-- Angles in degrees * 100 (e.g., 45.67 degrees = 4567)
+ElevationAngle ::= INTEGER (0..9000)  -- 0 to 90 degrees
+AzimuthAngle ::= INTEGER (0..36000)   -- 0 to 360 degrees
+
+-- Frequency in Hz
+FrequencyHz ::= INTEGER (0..2147483647)
+
+-- Distance in meters
+DistanceMeters ::= INTEGER (0..40000000)  -- Up to 40,000 km
+
+-- Power in dBm * 10 (e.g., -105.5 dBm = -1055)
+PowerDbm ::= INTEGER (-2000..500)
+
+-- Generic percentage * 100 (e.g., 99.5% = 9950)
+Percentage ::= INTEGER (0..10000)
+
+-- Time in milliseconds
+TimeMs ::= INTEGER (0..2147483647)
+
+-- Timestamp in nanoseconds
+TimestampNs ::= INTEGER (0..9223372036854775807)
+
+-- UE Identifier
+UE-ID ::= PrintableString (SIZE(1..32))
+
+-- **************************************************************
+-- RAN Function Definition (E2 Setup)
+-- **************************************************************
+
+RANfunction-Name ::= SEQUENCE {
+    ranFunction-ShortName     PrintableString (SIZE(1..150)),
+    ranFunction-E2SM-OID      PrintableString (SIZE(1..150)),
+    ranFunction-Description   PrintableString (SIZE(1..150)) OPTIONAL,
+    ...
+}
+
+RIC-EventTriggerStyle-Item ::= SEQUENCE {
+    ric-EventTriggerStyle-Type      INTEGER,
+    ric-EventTriggerStyle-Name      PrintableString (SIZE(1..150)),
+    ric-EventTriggerFormat-Type     INTEGER,
+    ...
+}
+
+RIC-ReportStyle-Item ::= SEQUENCE {
+    ric-ReportStyle-Type                INTEGER,
+    ric-ReportStyle-Name                PrintableString (SIZE(1..150)),
+    ric-IndicationHeaderFormat-Type     INTEGER,
+    ric-IndicationMessageFormat-Type    INTEGER,
+    ...
+}
+
+E2SM-NTN-RANfunction-Description ::= SEQUENCE {
+    ranFunction-Name                  RANfunction-Name,
+    ric-EventTriggerStyle-List        SEQUENCE (SIZE(1..maxnoofRICStyles)) OF RIC-EventTriggerStyle-Item,
+    ric-ReportStyle-List              SEQUENCE (SIZE(1..maxnoofRICStyles)) OF RIC-ReportStyle-Item,
+    ...
+}
+
+-- **************************************************************
+-- Event Trigger Definition
+-- **************************************************************
+
+NTN-EventTrigger ::= CHOICE {
+    periodic                    NTN-PeriodicTrigger,
+    elevation-threshold         NTN-ElevationTrigger,
+    handover-imminent          NTN-HandoverTrigger,
+    link-quality-alert         NTN-LinkQualityTrigger,
+    doppler-threshold          NTN-DopplerTrigger,
+    rain-fade-detected         NTN-RainFadeTrigger,
+    ...
+}
+
+NTN-PeriodicTrigger ::= SEQUENCE {
+    reporting-period-ms         INTEGER (100..60000),
+    ...
+}
+
+NTN-ElevationTrigger ::= SEQUENCE {
+    threshold-degrees           ElevationAngle,
+    trigger-on-falling          BOOLEAN,
+    ...
+}
+
+NTN-HandoverTrigger ::= SEQUENCE {
+    time-to-handover-threshold-sec  INTEGER (10..300),
+    ...
+}
+
+NTN-LinkQualityTrigger ::= SEQUENCE {
+    rsrp-threshold-dbm          PowerDbm,
+    sinr-threshold-db           INTEGER (-200..500),
+    ...
+}
+
+NTN-DopplerTrigger ::= SEQUENCE {
+    doppler-shift-threshold-hz  INTEGER (0..100000),
+    ...
+}
+
+NTN-RainFadeTrigger ::= SEQUENCE {
+    attenuation-threshold-db    INTEGER (0..300),
+    ...
+}
+
+-- **************************************************************
+-- NTN Indication Header (Format 1)
+-- **************************************************************
+
+E2SM-NTN-IndicationHeader-Format1 ::= SEQUENCE {
+    timestamp-ns                TimestampNs,
+    satellite-id                SatelliteID,
+    orbit-type                  OrbitType,
+    granularity-period-ms       INTEGER (100..60000),
+    measurement-type            ENUMERATED {
+        periodic(0),
+        event-triggered(1),
+        ...
+    },
+    ...
+}
+
+-- **************************************************************
+-- Satellite Metrics
+-- **************************************************************
+
+SatelliteMetrics ::= SEQUENCE {
+    satellite-id                SatelliteID,
+    orbit-type                  OrbitType,
+    beam-id                     BeamID,
+    elevation-angle             ElevationAngle,
+    azimuth-angle               AzimuthAngle,
+    slant-range-m               DistanceMeters,
+    satellite-velocity-ms       INTEGER (0..10000),  -- m/s
+    angular-velocity-degs       INTEGER (-1000..1000),  -- deg/s * 100
+    ...
+}
+
+-- **************************************************************
+-- Channel Quality Metrics
+-- **************************************************************
+
+ChannelQuality ::= SEQUENCE {
+    rsrp                        PowerDbm,
+    rsrq                        INTEGER (-400..0),  -- dB * 10
+    sinr                        INTEGER (-200..500),  -- dB * 10
+    bler                        Percentage,  -- Block Error Rate
+    cqi                         INTEGER (0..15),  -- Channel Quality Indicator
+    ...
+}
+
+-- **************************************************************
+-- NTN Impairments
+-- **************************************************************
+
+NTN-Impairments ::= SEQUENCE {
+    doppler-shift-hz            INTEGER (-100000..100000),
+    doppler-rate-hz-s           INTEGER (-10000..10000),  -- Hz/s
+    propagation-delay-ms        TimeMs,
+    path-loss-db                INTEGER (0..2500),  -- dB * 10
+    rain-attenuation-db         INTEGER (0..500),  -- dB * 10
+    atmospheric-loss-db         INTEGER (0..200),  -- dB * 10
+    ...
+}
+
+-- **************************************************************
+-- Link Budget
+-- **************************************************************
+
+LinkBudget ::= SEQUENCE {
+    tx-power-dbm                PowerDbm,
+    rx-power-dbm                PowerDbm,
+    link-margin-db              INTEGER (-500..500),  -- dB * 10
+    snr-db                      INTEGER (-200..500),  -- dB * 10
+    required-snr-db             INTEGER (-200..500),  -- dB * 10
+    ...
+}
+
+-- **************************************************************
+-- Handover Prediction
+-- **************************************************************
+
+HandoverPrediction ::= SEQUENCE {
+    time-to-handover-sec        INTEGER (0..999999),
+    handover-trigger-threshold  ElevationAngle,
+    next-satellite-id           SatelliteID OPTIONAL,
+    next-satellite-elevation    ElevationAngle OPTIONAL,
+    handover-probability        Percentage,
+    ...
+}
+
+-- **************************************************************
+-- Performance Metrics
+-- **************************************************************
+
+PerformanceMetrics ::= SEQUENCE {
+    throughput-dl-kbps          INTEGER (0..1000000),  -- kbps
+    throughput-ul-kbps          INTEGER (0..1000000),  -- kbps
+    latency-rtt-ms              TimeMs,
+    packet-loss-rate            Percentage,
+    ...
+}
+
+-- **************************************************************
+-- NTN Indication Message (Format 1 - Full Metrics)
+-- **************************************************************
+
+E2SM-NTN-IndicationMessage-Format1 ::= SEQUENCE {
+    timestamp-ns                TimestampNs,
+    ue-id                       UE-ID,
+    satellite-metrics           SatelliteMetrics,
+    channel-quality             ChannelQuality,
+    ntn-impairments             NTN-Impairments,
+    link-budget                 LinkBudget,
+    handover-prediction         HandoverPrediction,
+    performance                 PerformanceMetrics,
+    ...
+}
+
+-- **************************************************************
+-- NTN Indication Message (Format 2 - Minimal Report)
+-- **************************************************************
+
+E2SM-NTN-IndicationMessage-Format2 ::= SEQUENCE {
+    timestamp-ns                TimestampNs,
+    ue-id                       UE-ID,
+    satellite-id                SatelliteID,
+    elevation-angle             ElevationAngle,
+    rsrp                        PowerDbm,
+    sinr                        INTEGER (-200..500),
+    time-to-handover-sec        INTEGER (0..999999),
+    ...
+}
+
+-- **************************************************************
+-- NTN Indication Message (Format 3 - Handover Preparation)
+-- **************************************************************
+
+E2SM-NTN-IndicationMessage-Format3 ::= SEQUENCE {
+    timestamp-ns                TimestampNs,
+    ue-id                       UE-ID,
+    current-satellite-id        SatelliteID,
+    current-elevation           ElevationAngle,
+    next-satellite-id           SatelliteID,
+    next-elevation              ElevationAngle,
+    handover-probability        Percentage,
+    recommended-time-sec        INTEGER (0..300),
+    ...
+}
+
+-- **************************************************************
+-- Control Actions
+-- **************************************************************
+
+NTN-ControlAction ::= CHOICE {
+    power-control               NTN-PowerControlAction,
+    trigger-handover            NTN-HandoverAction,
+    doppler-compensation        NTN-DopplerCompensationAction,
+    link-adaptation             NTN-LinkAdaptationAction,
+    beam-switch                 NTN-BeamSwitchAction,
+    activate-fade-mitigation    NTN-FadeMitigationAction,
+    ...
+}
+
+NTN-PowerControlAction ::= SEQUENCE {
+    ue-id                       UE-ID,
+    target-tx-power-dbm         PowerDbm,
+    power-adjustment-db         INTEGER (-230..230),  -- dB * 10
+    reason                      ENUMERATED {
+        link-margin-excessive(0),
+        link-margin-low(1),
+        link-margin-ok(2),
+        rain-fade-compensation(3),
+        ...
+    },
+    ...
+}
+
+NTN-HandoverAction ::= SEQUENCE {
+    ue-id                       UE-ID,
+    target-satellite-id         SatelliteID,
+    target-beam-id              BeamID,
+    handover-type               ENUMERATED {
+        proactive(0),
+        reactive(1),
+        ...
+    },
+    preparation-time-ms         TimeMs,
+    ...
+}
+
+NTN-DopplerCompensationAction ::= SEQUENCE {
+    ue-id                       UE-ID,
+    frequency-offset-hz         INTEGER (-100000..100000),
+    compensation-mode           ENUMERATED {
+        ue-based(0),
+        network-based(1),
+        hybrid(2),
+        ...
+    },
+    ...
+}
+
+NTN-LinkAdaptationAction ::= SEQUENCE {
+    ue-id                       UE-ID,
+    target-mcs                  INTEGER (0..28),  -- Modulation and Coding Scheme
+    target-rb-allocation        INTEGER (1..273),  -- Resource Blocks
+    ...
+}
+
+NTN-BeamSwitchAction ::= SEQUENCE {
+    ue-id                       UE-ID,
+    target-beam-id              BeamID,
+    switch-reason               ENUMERATED {
+        better-coverage(0),
+        load-balancing(1),
+        interference-avoidance(2),
+        ...
+    },
+    ...
+}
+
+NTN-FadeMitigationAction ::= SEQUENCE {
+    ue-id                       UE-ID,
+    mitigation-strategy         ENUMERATED {
+        increase-power(0),
+        lower-mcs(1),
+        increase-coding-rate(2),
+        diversity-combining(3),
+        ...
+    },
+    estimated-fade-duration-sec INTEGER (0..3600),
+    ...
+}
+
+-- **************************************************************
+-- Control Message (RIC Control)
+-- **************************************************************
+
+E2SM-NTN-ControlMessage ::= SEQUENCE {
+    control-action              NTN-ControlAction,
+    execution-priority          INTEGER (0..255) OPTIONAL,
+    target-timestamp-ns         TimestampNs OPTIONAL,
+    ...
+}
+
+-- **************************************************************
+-- Control Outcome
+-- **************************************************************
+
+E2SM-NTN-ControlOutcome ::= SEQUENCE {
+    outcome-status              ENUMERATED {
+        success(0),
+        rejected(1),
+        failed(2),
+        ...
+    },
+    outcome-timestamp-ns        TimestampNs,
+    failure-cause               PrintableString (SIZE(1..256)) OPTIONAL,
+    ...
+}
+
+END

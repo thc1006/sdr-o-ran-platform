@@ -1,0 +1,287 @@
+# Default values for ntn-oran Helm chart
+
+global:
+  namespace: ntn-oran
+  environment: production
+  imageRegistry: docker.io
+  imagePullPolicy: IfNotPresent
+
+# Redis configuration
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: 7-alpine
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: standard
+
+# E2 Termination service
+e2Termination:
+  enabled: true
+  image:
+    repository: ntn/e2-termination
+    tag: latest
+  replicas: 2
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  service:
+    type: LoadBalancer
+    e2Port: 36421
+    httpPort: 8082
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Handover xApp
+handoverXapp:
+  enabled: true
+  image:
+    repository: ntn/handover-xapp
+    tag: latest
+  replicas: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  service:
+    type: ClusterIP
+    port: 8080
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# Power Control xApp
+powerXapp:
+  enabled: true
+  image:
+    repository: ntn/power-xapp
+    tag: latest
+  replicas: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  service:
+    type: ClusterIP
+    port: 8081
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# Weather Service
+weatherService:
+  enabled: true
+  image:
+    repository: ntn/weather-service
+    tag: latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  service:
+    type: ClusterIP
+    port: 8083
+
+# Orbit Service
+orbitService:
+  enabled: true
+  image:
+    repository: ntn/orbit-service
+    tag: latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  service:
+    type: ClusterIP
+    port: 8084
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 75
+
+# Monitoring stack
+monitoring:
+  prometheus:
+    enabled: true
+    image:
+      repository: prom/prometheus
+      tag: latest
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: standard
+    retention: 15d
+    service:
+      type: NodePort
+      port: 9090
+      nodePort: 30090
+
+  grafana:
+    enabled: true
+    image:
+      repository: grafana/grafana
+      tag: latest
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: standard
+    service:
+      type: NodePort
+      port: 3000
+      nodePort: 30300
+    adminPassword: "changeme"
+
+# Logging stack
+logging:
+  elasticsearch:
+    enabled: true
+    image:
+      repository: docker.elastic.co/elasticsearch/elasticsearch
+      tag: 8.11.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 1000m
+        memory: 3Gi
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: standard
+
+  logstash:
+    enabled: true
+    image:
+      repository: docker.elastic.co/logstash/logstash
+      tag: 8.11.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+  kibana:
+    enabled: true
+    image:
+      repository: docker.elastic.co/kibana/kibana
+      tag: 8.11.0
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    service:
+      type: NodePort
+      port: 5601
+      nodePort: 30561
+
+  filebeat:
+    enabled: true
+    image:
+      repository: docker.elastic.co/beats/filebeat
+      tag: 8.11.0
+    resources:
+      requests:
+        cpu: 100m
+        memory: 200Mi
+      limits:
+        cpu: 200m
+        memory: 400Mi
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: ntn-oran.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ntn-tls
+      hosts:
+        - ntn-oran.local
+
+# Pod Disruption Budgets
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Security settings
+securityContext:
+  runAsNonRoot: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# Configuration
+config:
+  logLevel: INFO
+  targetLatencyMs: 5.5
+  targetThroughputMps: 600
+  maxSatellites: 8805
+  satelliteUpdateInterval: 60
+  orbitUpdateInterval: 30
+  weatherCacheTTL: 3600

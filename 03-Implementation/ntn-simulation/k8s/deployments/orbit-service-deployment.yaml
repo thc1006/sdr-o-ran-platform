@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orbit-service
+  namespace: ntn-oran
+  labels:
+    app: orbit-service
+    component: satellite-tracking
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orbit-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: orbit-service
+        component: satellite-tracking
+        tier: backend
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8084"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: orbit-service
+        image: ntn/orbit-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8084
+          protocol: TCP
+        env:
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: LOG_LEVEL
+        - name: PYTHONUNBUFFERED
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: PYTHONUNBUFFERED
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: REDIS_PORT
+        - name: TLE_CACHE_DIR
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: TLE_CACHE_DIR
+        - name: SATELLITE_UPDATE_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: SATELLITE_UPDATE_INTERVAL
+        - name: MAX_SATELLITES
+          valueFrom:
+            configMapKeyRef:
+              name: ntn-config
+              key: MAX_SATELLITES
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8084
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8084
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+        - name: logs
+          mountPath: /var/log/ntn
+        - name: tle-cache
+          mountPath: /var/lib/ntn/tle_cache
+        securityContext:
+          runAsNonRoot: false
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: tle-cache
+        persistentVolumeClaim:
+          claimName: tle-cache-pvc
+      restartPolicy: Always

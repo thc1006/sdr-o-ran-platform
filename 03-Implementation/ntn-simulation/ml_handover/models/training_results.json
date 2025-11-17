@@ -1,0 +1,60 @@
+{
+  "timestamp": "2025-11-17T12:49:49.819343",
+  "configuration": {
+    "samples": 10000,
+    "epochs": 50,
+    "batch_size": 32,
+    "val_split": 0.2,
+    "model_path": "./ml_handover/models/handover_lstm_best.h5",
+    "seed": 42
+  },
+  "training_summary": {
+    "total_epochs": 50,
+    "best_epoch": 50,
+    "best_val_loss": 0.004607193171977997,
+    "final_train_loss": 0.004669493995606899,
+    "final_val_loss": 0.004607193171977997,
+    "converged": false
+  },
+  "evaluation": {
+    "ml_metrics": {
+      "mae": 0.01570270488090532,
+      "rmse": 0.0197155429885002,
+      "mape": 5.904100885332132,
+      "accuracy_percent": 100.0,
+      "avg_error": 0.01570270488090532,
+      "std_error": 0.011921732036687947,
+      "median_error": 0.012917490754069623,
+      "max_error": 0.06945594328072802,
+      "confidence_mae": 0.016248923768381204,
+      "confidence_accuracy": 100.0
+    },
+    "baseline_metrics": {
+      "mae": 0.03841788305275179,
+      "rmse": 0.04831478872101887,
+      "mape": 14.33259283978959,
+      "accuracy_percent": 95.75,
+      "avg_error": 0.03841788305275179,
+      "std_error": 0.029298209346336822,
+      "median_error": 0.03232575544062882,
+      "max_error": 0.15423816859214512,
+      "confidence_mae": 0.037913179330946886,
+      "confidence_accuracy": 97.05
+    },
+    "comparison": {
+      "mae_improvement": 59.12657431086493,
+      "rmse_improvement": 59.19356472333459,
+      "mape_improvement": 58.80647032028013,
+      "accuracy_percent_improvement": 4.43864229765013,
+      "avg_error_improvement": 59.12657431086493,
+      "std_error_improvement": 59.30900794734567,
+      "median_error_improvement": 60.039632243724164,
+      "max_error_improvement": 54.968381747068285,
+      "confidence_mae_improvement": 57.1417537248903,
+      "confidence_accuracy_improvement": 3.0396702730551293,
+      "accuracy_improvement": 4.25
+    },
+    "p_value": 1.251456194360243e-181,
+    "statistically_significant": true
+  }
+}
