@@ -42,9 +42,9 @@ class NormalizationParams:
     rsrp_min: float = -140.0
     rsrp_max: float = -70.0
 
-    # Doppler shift: -15000 to +15000 Hz (LEO at S-band)
-    doppler_min: float = -15000.0
-    doppler_max: float = 15000.0
+    # Doppler shift: -50000 to +50000 Hz (LEO at S-band, corrected geometry)
+    doppler_min: float = -50000.0
+    doppler_max: float = 50000.0
 
     # Satellite velocity: 6-8 km/s (LEO)
     velocity_min: float = 6.0

@@ -202,6 +202,7 @@ class TestNTNEnvRSRPFormula:
         """
         sr = slant_range_km(10.0)
         rsrp_correct = env._calculate_rsrp(46.0, sr, 10.0, 0.0)
+        assert np.isfinite(rsrp_correct), "Corrected RSRP must be finite"
 
         # What the old code would have returned
         fspl = fspl_db(sr, 2.0)

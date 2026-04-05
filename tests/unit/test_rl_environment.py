@@ -205,11 +205,11 @@ class TestActionSpace:
 class TestRewardContinuity:
     """
     The reward function must be continuous near the RSRP threshold.
-    A cliff (discontinuity) at the threshold prevents the RL agent from
-    learning a smooth policy to avoid violations.
 
-    Current bug: reward jumps from ~+3 (just above threshold) to -100 (just below).
-    Fix: use a smooth penalty that increases continuously below the threshold.
+    Invariant: reward varies smoothly (sigmoid + linear penalty) around the
+    threshold so the RL agent receives a meaningful gradient signal.  There
+    must be no hard cliff — the jump between rewards at just-above and
+    just-below the threshold must be small (<= 15).
     """
 
     def test_reward_is_finite(self, env):

@@ -64,7 +64,6 @@ class NTNPowerEnvironment(gym.Env):
         self.target_rsrp_dbm = config.get('target_rsrp_dbm', -85.0)
         self.rsrp_threshold_dbm = config.get('rsrp_threshold_dbm', -90.0)
         self.power_penalty_weight = config.get('power_penalty_weight', 0.01)
-        self.rsrp_violation_penalty = config.get('rsrp_violation_penalty', 100.0)
 
         # Carrier frequency (2 GHz for S-band)
         self.carrier_freq_hz = config.get('carrier_freq_hz', 2e9)
@@ -389,7 +388,7 @@ class NTNPowerEnvironment(gym.Env):
 
         return slant_range
 
-    def _calculate_doppler_shift(self, elevation_deg: float, azimuth_deg: float) -> float:
+    def _calculate_doppler_shift(self, elevation_deg: float, _azimuth_deg: float) -> float:
         """
         Calculate Doppler shift for LEO satellite.
 
