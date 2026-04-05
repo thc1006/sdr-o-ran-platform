@@ -1,0 +1,19 @@
+{
+  "episodes": 500,
+  "episode_length": 300,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "gae_lambda": 0.95,
+  "clip_epsilon": 0.2,
+  "n_steps": 300,
+  "n_epochs": 10,
+  "batch_size": 64,
+  "ent_coef": 0.01,
+  "vf_coef": 0.5,
+  "eval_episodes": 100,
+  "eval_frequency": 50,
+  "save_dir": "./models/run_ppo_v1",
+  "target_rsrp": -85.0,
+  "rsrp_threshold": -90.0,
+  "seed": 42
+}
