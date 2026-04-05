@@ -8,7 +8,7 @@ The gold standard for a fair comparison:
   If reactive_system == predictive_system (same algorithm),
   the measured "improvement" must be statistically indistinguishable from 0%.
 
-Current bugs documented:
+Previously observed bias patterns:
   1. RSRP uses non-physics formula: rsrp = -70 - (90 - elevation) * 0.5
   2. Throughput hardcoded: reactive → 0.85x, predictive → 0.95x on handover
   3. Rain fade hardcoded: reactive → 0.7x, predictive → 0.9x at >5 dB
@@ -21,12 +21,8 @@ Author: thc1006
 Date: 2026-04-05
 """
 
-import numpy as np
 import pytest
-import ast
 import os
-import sys
-import textwrap
 
 # Path to comparative_simulation.py
 COMP_SIM_PATH = os.path.join(
@@ -36,7 +32,7 @@ COMP_SIM_PATH = os.path.join(
 
 
 # =============================================================================
-# Static analysis: detect hardcoded bias patterns directly in source code
+# Substring matching: detect hardcoded bias patterns directly in source code
 # =============================================================================
 
 @pytest.fixture(scope='module')
@@ -114,6 +110,10 @@ class TestHardcodedBiasPatterns:
             "HARDCODED BIAS DETECTED: 'base_loss = 0.08' hardcodes 8% packet loss "
             "for reactive in rain — this is a predetermined result, not a measurement."
         )
+        assert 'base_loss = 0.01' not in comp_sim_source, (
+            "HARDCODED BIAS DETECTED: 'base_loss = 0.01' hardcodes 1% packet loss "
+            "for predictive in rain — this is a predetermined result, not a measurement."
+        )
 
 
 class TestRSRPPhysics:
@@ -187,25 +187,89 @@ class TestFairnessWithIdenticalAlgorithms:
             "performance modifiers from _create_metrics_record."
         )
 
-    def test_metrics_record_inputs_determine_outputs(self, comp_sim_source):
+    def test_metrics_record_inputs_determine_outputs(self):
         """
         _create_metrics_record must produce the same distribution for
         both system types given the same ntn_metrics and actions inputs.
         The system_type label must not change the output values.
-        """
-        # This is enforced by the pattern test above.
-        # Here we document the requirement explicitly.
-        requirement = textwrap.dedent("""
-            REQUIREMENT: _create_metrics_record(ue_id, scenario, system_type='reactive',
-                                                ntn_metrics, actions, timestamp)
-            must produce the same MEAN values as the same call with system_type='predictive'
-            when ntn_metrics and actions are identical.
 
-            The comparison framework must measure algorithmic performance, not
-            report predetermined values.
-        """)
-        # This assertion always passes — it documents the requirement.
-        assert True, requirement
+        Calls _create_metrics_record twice with the same inputs and a fixed
+        seed, once with system_type='reactive' and once with 'predictive',
+        and asserts the numeric outputs are close.
+        """
+        import importlib
+        import sys
+        import types
+        import unittest.mock as mock
+        import numpy as np
+        from datetime import datetime
+
+        sim_dir = os.path.join(
+            os.path.dirname(__file__),
+            '../../03-Implementation/ntn-simulation'
+        )
+        abs_sim_dir = os.path.abspath(sim_dir)
+
+        # Stub out heavy transitive dependencies so we can import
+        # comparative_simulation without requiring sgp4, etc.
+        stubs = {}
+        for mod_name in [
+            'sgp4', 'sgp4.api',
+            'orbit_propagation', 'orbit_propagation.sgp4_propagator',
+            'orbit_propagation.tle_manager',
+            'orbit_propagation.constellation_simulator',
+            'baseline.reactive_system', 'baseline.predictive_system',
+        ]:
+            stubs[mod_name] = types.ModuleType(mod_name)
+
+        # Provide dummy classes expected at import time
+        stubs['orbit_propagation'].TLEManager = type('TLEManager', (), {})
+        stubs['orbit_propagation.tle_manager'].TLEManager = stubs['orbit_propagation'].TLEManager
+        stubs['orbit_propagation'].SGP4Propagator = type('SGP4Propagator', (), {})
+        stubs['orbit_propagation.sgp4_propagator'].SGP4Propagator = stubs['orbit_propagation'].SGP4Propagator
+        stubs['orbit_propagation'].ConstellationSimulator = type('ConstellationSimulator', (), {})
+        stubs['orbit_propagation.constellation_simulator'].ConstellationSimulator = stubs['orbit_propagation'].ConstellationSimulator
+        stubs['baseline.reactive_system'].ReactiveNTNSystem = type('ReactiveNTNSystem', (), {})
+        stubs['baseline.predictive_system'].PredictiveNTNSystem = type('PredictiveNTNSystem', (), {})
+
+        with mock.patch.dict(sys.modules, stubs):
+            if abs_sim_dir not in sys.path:
+                sys.path.insert(0, abs_sim_dir)
+            # Force a fresh import
+            mod = importlib.import_module('baseline.comparative_simulation')
+            ComparativeSimulator = mod.ComparativeSimulator
+
+        simulator = ComparativeSimulator.__new__(ComparativeSimulator)
+        ntn_metrics = {
+            'satellite_metrics': {'elevation_angle': 45.0, 'slant_range_km': 800.0},
+            'channel_quality': {'rsrp': -90.0, 'sinr': 12.0},
+            'link_budget': {'tx_power_dbm': 20.0, 'link_margin_db': 5.0},
+            'ntn_impairments': {'rain_attenuation_db': 2.0},
+        }
+        actions = {}  # no handover or power events
+        ts = datetime(2026, 1, 1, 0, 0, 0)
+
+        np.random.seed(42)
+        reactive = simulator._create_metrics_record(
+            'UE-0001', 'test', 'reactive', ntn_metrics, actions, ts
+        )
+        np.random.seed(42)
+        predictive = simulator._create_metrics_record(
+            'UE-0001', 'test', 'predictive', ntn_metrics, actions, ts
+        )
+
+        assert abs(reactive.throughput_mbps - predictive.throughput_mbps) < 1e-6, (
+            f"throughput differs: reactive={reactive.throughput_mbps}, "
+            f"predictive={predictive.throughput_mbps}"
+        )
+        assert abs(reactive.latency_ms - predictive.latency_ms) < 1e-6, (
+            f"latency differs: reactive={reactive.latency_ms}, "
+            f"predictive={predictive.latency_ms}"
+        )
+        assert abs(reactive.packet_loss_rate - predictive.packet_loss_rate) < 1e-6, (
+            f"packet_loss differs: reactive={reactive.packet_loss_rate}, "
+            f"predictive={predictive.packet_loss_rate}"
+        )
 
 
 if __name__ == '__main__':

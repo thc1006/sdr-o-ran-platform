@@ -390,7 +390,12 @@ class ComparativeSimulator:
         required_snr = 9.0
         link_margin = sinr - required_snr
 
-        # RSRP via physics-based link budget (3GPP TR 38.821)
+        # RSRP via NTN downlink link budget (3GPP TR 38.821)
+        # NOTE: These parameters differ from the generic link budget above
+        # (tx_power=20, antenna_gain=20) intentionally. RSRP models the
+        # satellite downlink reference signal with realistic NTN Tx power
+        # and combined antenna gain, whereas the generic budget above is
+        # used for rx_power/SINR/link_margin in a simplified UE-centric model.
         tx_power_dbm = 46.0        # Satellite Tx power (dBm)
         antenna_gain_dbi = 35.0    # Combined Sat Tx + UE Rx (3GPP TR 38.821)
         atm_loss_db = 0.5          # Atmospheric loss (simplified)
@@ -466,7 +471,7 @@ class ComparativeSimulator:
             if system_type == 'predictive':
                 metrics.weather_aware = getattr(pe, 'weather_aware', False)
 
-        # Calculate throughput from link quality (Shannon capacity approximation)
+        # Calculate throughput from link quality (heuristic base throughput)
         # Base throughput derived from SINR, not system type label
         base_throughput = 50.0
         if metrics.handover_triggered and not metrics.handover_success:
@@ -475,7 +480,7 @@ class ComparativeSimulator:
         elif metrics.handover_triggered:
             # Handover interruption: determined by actual handover_execution_time_ms
             # Shorter execution time → less throughput loss (physics-based)
-            if metrics.handover_execution_time_ms > 0:
+            if metrics.data_interruption_ms > 0:
                 # 1 ms interruption ≈ 0.1% throughput loss in a 1-second window
                 interruption_fraction = min(
                     metrics.data_interruption_ms / 1000.0, 0.5)
@@ -487,12 +492,12 @@ class ComparativeSimulator:
             margin_factor = max(0.3, metrics.link_margin_db / 10.0 + 0.7)
             base_throughput *= margin_factor
 
-        metrics.throughput_mbps = base_throughput * (1 + np.random.normal(0, 0.1))
+        metrics.throughput_mbps = max(0, base_throughput * (1 + np.random.normal(0, 0.1)))
 
         # Calculate latency: base satellite propagation + handover overhead
         slant_range_m = metrics.slant_range_km * 1000
-        propagation_delay_ms = slant_range_m / 299792458.0 * 1000  # one-way RTT
-        base_latency = 2 * propagation_delay_ms  # round-trip
+        propagation_delay_ms = slant_range_m / 299792458.0 * 1000  # one-way propagation delay
+        base_latency = 2 * propagation_delay_ms  # round-trip time (RTT)
         if metrics.handover_triggered:
             # Handover adds execution time as latency, regardless of system type
             base_latency += metrics.handover_execution_time_ms
@@ -507,7 +512,7 @@ class ComparativeSimulator:
             # Link outage: packet loss proportional to margin deficit
             base_loss = min(0.5, 0.05 * abs(metrics.link_margin_db))
 
-        metrics.packet_loss_rate = max(0, base_loss * (1 + np.random.normal(0, 0.2)))
+        metrics.packet_loss_rate = min(1.0, max(0.0, base_loss * (1 + np.random.normal(0, 0.2))))
 
         return metrics
 
