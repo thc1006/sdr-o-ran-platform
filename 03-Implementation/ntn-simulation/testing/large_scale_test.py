@@ -501,8 +501,8 @@ class LargeScaleNTNTest:
         slant_range_km = satellite_geometry['slant_range_km']
         frequency_ghz = 2.0
 
-        # Free space path loss: FSPL = 20*log10(d) + 20*log10(f) + 92.45
-        fspl_db = 20 * np.log10(slant_range_km) + 20 * np.log10(frequency_ghz * 1000) + 92.45
+        # Free space path loss: FSPL = 92.45 + 20*log10(f_GHz) + 20*log10(d_km)
+        fspl_db = 92.45 + 20 * np.log10(frequency_ghz) + 20 * np.log10(slant_range_km)
 
         # Total losses
         total_loss_db = (
