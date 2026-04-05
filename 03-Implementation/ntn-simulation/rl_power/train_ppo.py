@@ -159,6 +159,9 @@ def train(args):
 
         # --- PPO update on collected rollout --------------------------------
         loss_info = agent.update(last_state=obs)
+        print(f"  [PPO Update] pg_loss={loss_info['pg_loss']:.4f}  "
+              f"vf_loss={loss_info['vf_loss']:.4f}  "
+              f"entropy={loss_info['entropy']:.4f}")
 
         # Save best model
         cur_mean = np.mean(recent_rewards) if recent_rewards else -np.inf
@@ -242,7 +245,7 @@ def main():
     print("="*70)
 
     # Compare against DQN v1 if available
-    dqn_path = Path('./models/run_corrected_v1/evaluation_comparison.json')
+    dqn_path = Path(__file__).resolve().parent / 'models' / 'run_corrected_v1' / 'evaluation_comparison.json'
     if dqn_path.exists():
         with open(dqn_path) as f:
             dqn_cmp = json.load(f)

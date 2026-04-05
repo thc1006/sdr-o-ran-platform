@@ -12,7 +12,7 @@
   "eval_episodes": 50,
   "eval_frequency": 100,
   "checkpoint_freq": 200,
-  "save_dir": "/home/thc1006/dev/sdr-o-ran-platform/03-Implementation/ntn-simulation/rl_power/models/run_corrected_v1",
+  "save_dir": "./models/run_corrected_v1",
   "seed": 42,
   "verbose": true
 }

@@ -61,8 +61,10 @@ class ActorCriticNetwork(nn.Module):
             nn.init.orthogonal_(module.weight, gain=np.sqrt(2))
             nn.init.constant_(module.bias, 0.0)
         # Use smaller gain for output heads
-        nn.init.orthogonal_(self.actor_head.weight, gain=0.01)
-        nn.init.orthogonal_(self.critic_head.weight, gain=1.0)
+        if module is self.actor_head:
+            nn.init.orthogonal_(self.actor_head.weight, gain=0.01)
+        if module is self.critic_head:
+            nn.init.orthogonal_(self.critic_head.weight, gain=1.0)
 
     def forward(self, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -132,9 +134,9 @@ class RolloutBuffer:
         last_gae = 0.0
         for t in reversed(range(self.pos)):
             next_val = last_value if t == self.pos - 1 else values[t + 1]
-            next_done = 0.0 if t == self.pos - 1 else dones[t + 1]
-            delta = rewards[t] + self.gamma * next_val * (1.0 - next_done) - values[t]
-            last_gae = delta + self.gamma * self.gae_lambda * (1.0 - dones[t]) * last_gae
+            next_nonterminal = 1.0 - dones[t]
+            delta = rewards[t] + self.gamma * next_val * next_nonterminal - values[t]
+            last_gae = delta + self.gamma * self.gae_lambda * next_nonterminal * last_gae
             advantages[t] = last_gae
 
         returns = advantages + values[:self.pos]
@@ -167,6 +169,7 @@ class PPOAgent:
     PPO Agent for NTN Power Control (discrete actions).
     """
 
+    # TODO: Add unit tests for PPOAgent (GAE computation, clipping, checkpoint round-trip).
     def __init__(self, config: Dict[str, Any]):
         self.state_dim   = config['state_dim']
         self.action_dim  = config['action_dim']
