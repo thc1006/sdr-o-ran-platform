@@ -11,34 +11,44 @@ import json
 import argparse
 
 
-def generate_leo_iq_samples(sample_rate=30.72e6, duration=0.01):
-    """Generate simulated LEO NTN IQ samples with channel effects"""
+def generate_leo_iq_samples(sample_rate=30.72e6, duration=0.01, elevation_deg=45.0,
+                            pass_progress=0.5):
+    """Generate simulated LEO NTN IQ samples with channel effects."""
     num_samples = int(sample_rate * duration)
 
-    # Simulate carrier frequency with Doppler shift
-    doppler_hz = np.random.uniform(-40e3, 40e3)  # ±40 kHz
-    t = np.arange(num_samples) / sample_rate
+    # Doppler shift from satellite geometry (3GPP TR 38.821)
+    R_e = 6371.0  # Earth radius (km)
+    h = 600.0     # LEO altitude (km)
+    v_sat = 7.56  # Orbital velocity (km/s)
+    f_carrier = 2e9
+    c = 299792458.0
 
-    # Generate complex IQ samples
+    el_rad = np.radians(elevation_deg)
+    v_radial = v_sat * 1000 * R_e * np.cos(el_rad) / (R_e + h)  # m/s
+    doppler_hz = v_radial / c * f_carrier
+    # Sign: approaching in first half, receding in second half
+    if pass_progress > 0.5:
+        doppler_hz = -doppler_hz
+
+    t = np.arange(num_samples) / sample_rate
     carrier = np.exp(2j * np.pi * doppler_hz * t)
 
-    # Add Rayleigh fading
-    h_real = np.random.randn(num_samples)
-    h_imag = np.random.randn(num_samples)
-    h = (h_real + 1j * h_imag) / np.sqrt(2)
+    # Rician fading (LOS satellite channel, K-factor increases with elevation)
+    k_factor_db = 5.0 + 10.0 * np.sin(el_rad)  # 5-15 dB per TR 38.811
+    k_factor = 10 ** (k_factor_db / 10)
+    los = np.sqrt(k_factor / (k_factor + 1))
+    scatter = np.sqrt(1 / (2 * (k_factor + 1)))
+    channel_coeff = los + scatter * (np.random.randn(num_samples) + 1j * np.random.randn(num_samples))
 
-    # Add AWGN
-    snr_db = 10  # 10 dB SNR
+    # AWGN
+    snr_db = 10
     noise_power = 10 ** (-snr_db / 10)
-    noise = np.sqrt(noise_power/2) * (np.random.randn(num_samples) + 1j * np.random.randn(num_samples))
+    noise = np.sqrt(noise_power / 2) * (np.random.randn(num_samples) + 1j * np.random.randn(num_samples))
 
-    # Combined signal
-    signal = carrier * h + noise
-
-    # Normalize
+    signal = carrier * channel_coeff + noise
     signal = signal / np.max(np.abs(signal))
 
-    return signal.astype(np.complex64)
+    return signal.astype(np.complex64), doppler_hz
 
 
 def main():
@@ -70,19 +80,33 @@ def main():
     time.sleep(2)  # Allow subscribers to connect
 
     frame_count = 0
+    pass_duration_frames = 600  # 600 frames at 100 Hz = 6 seconds simulated pass
     while True:
-        # Generate IQ samples
-        iq_samples = generate_leo_iq_samples(args.sample_rate)
+        # Simulate satellite pass trajectory
+        pass_progress = (frame_count % pass_duration_frames) / pass_duration_frames
+        # Elevation follows parabolic arc: peak at 50% of pass
+        elevation_deg = max(5.0, 75.0 * (1 - 4 * (pass_progress - 0.5) ** 2))
 
-        # Create metadata
+        # Slant range (3GPP formula)
+        R_e, h = 6371.0, 600.0
+        el_rad = np.radians(elevation_deg)
+        slant_range = np.sqrt((R_e + h) ** 2 - (R_e * np.cos(el_rad)) ** 2) - R_e * np.sin(el_rad)
+        fspl_db = 92.45 + 20 * np.log10(2.0) + 20 * np.log10(slant_range)
+        delay_ms = slant_range / 299792.458 * 1000
+
+        # Generate IQ samples with consistent Doppler
+        iq_samples, doppler_hz = generate_leo_iq_samples(
+            args.sample_rate, elevation_deg=elevation_deg, pass_progress=pass_progress)
+
+        # Create metadata (consistent with signal)
         metadata = {
             'frame_id': frame_count,
             'timestamp': time.time(),
             'sample_rate': args.sample_rate,
             'num_samples': len(iq_samples),
-            'doppler_hz': np.random.uniform(-40e3, 40e3),
-            'delay_ms': np.random.uniform(5, 25),  # LEO delay
-            'fspl_db': 165.0,  # Free space path loss at Ka-band
+            'doppler_hz': float(doppler_hz),
+            'delay_ms': float(delay_ms),
+            'fspl_db': float(fspl_db),
         }
 
         # Send metadata as JSON

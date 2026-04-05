@@ -287,13 +287,15 @@ class LEOChannelModel:
 
         Notes
         -----
-        Maximum Doppler occurs at horizon (90° - elevation angle)
+        Maximum Doppler occurs at horizon (low elevation).
         Doppler = (v_radial / c) * f_carrier
-        where v_radial = v_sat * cos(90° - elevation)
+        where v_radial = v_sat * R_e * cos(elevation) / (R_e + h)
         """
-        # Radial velocity component (velocity toward/away from ground station)
+        # Radial velocity component with geometric correction (3GPP TR 38.821)
         elevation_rad = np.deg2rad(elevation_angle)
-        v_radial_kmps = self.orbital_velocity * np.cos(np.pi/2 - elevation_rad)
+        R_e = 6371.0  # Earth radius (km)
+        v_radial_kmps = (self.orbital_velocity * R_e * np.cos(elevation_rad)
+                         / (R_e + self.altitude))
 
         # Convert to m/s
         v_radial_ms = v_radial_kmps * 1000
@@ -473,18 +475,34 @@ class LEOChannelModel:
             # This is a placeholder - full implementation would use OpenNTN's
             # time-varying channel model
 
-        # Apply fading (simplified - uses basic Rayleigh for demonstration)
+        # Apply fading: Rician (LOS) + log-normal shadow fading
         if apply_fading:
-            # For full 3GPP TR38.811 fading, we would need to initialize
-            # the OpenNTN channel model with topology
-            # This is a simplified version
             num_samples = len(output_signal)
-            # Basic fading coefficient (this is simplified)
-            fading_coeff = (np.random.randn(num_samples) +
-                          1j * np.random.randn(num_samples)) / np.sqrt(2)
+            elevation_rad = np.deg2rad(elevation_angle)
+
+            # Rician K-factor increases with elevation (3GPP TR 38.811)
+            # K(dB) = 5 + 10*sin(el_rad) → range ~5 dB (horizon) to 15 dB (zenith)
+            k_factor_db = 5.0 + 10.0 * np.sin(elevation_rad)
+            k_factor = 10 ** (k_factor_db / 10)
+            los_amplitude = np.sqrt(k_factor / (k_factor + 1))
+            scatter_amplitude = np.sqrt(1.0 / (2 * (k_factor + 1)))
+
+            # Rician fading coefficients (complex)
+            scatter = scatter_amplitude * (
+                np.random.randn(num_samples) + 1j * np.random.randn(num_samples)
+            )
+            fading_coeff = los_amplitude + scatter
+
+            # Log-normal shadow fading (3GPP TR 38.811 Table 6.6.6.1-1)
+            # LOS NTN: σ_SF = 4 dB; NLOS: σ_SF = 6 dB
+            shadow_sigma_db = 4.0
+            shadow_db = np.random.normal(0, shadow_sigma_db)
+            shadow_linear = 10 ** (shadow_db / 20.0)
+
             channel_info['channel_coefficients'] = fading_coeff
-            # Note: Commented out to avoid double attenuation
-            # output_signal = output_signal * fading_coeff
+            channel_info['shadow_fading_db'] = shadow_db
+            channel_info['k_factor_db'] = k_factor_db
+            output_signal = output_signal * fading_coeff * shadow_linear
 
         return output_signal, channel_info
 
