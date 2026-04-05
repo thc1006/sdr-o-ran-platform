@@ -1,0 +1,18 @@
+{
+  "episodes": 1000,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "gamma": 0.99,
+  "epsilon_start": 1.0,
+  "epsilon_end": 0.05,
+  "epsilon_decay": 0.993,
+  "episode_length": 300,
+  "target_rsrp": -85.0,
+  "rsrp_threshold": -90.0,
+  "eval_episodes": 50,
+  "eval_frequency": 100,
+  "checkpoint_freq": 200,
+  "save_dir": "/home/thc1006/dev/sdr-o-ran-platform/03-Implementation/ntn-simulation/rl_power/models/run_corrected_v1",
+  "seed": 42,
+  "verbose": true
+}
