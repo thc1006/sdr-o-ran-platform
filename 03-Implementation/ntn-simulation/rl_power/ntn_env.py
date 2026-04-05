@@ -69,9 +69,18 @@ class NTNPowerEnvironment(gym.Env):
         # Carrier frequency (2 GHz for S-band)
         self.carrier_freq_hz = config.get('carrier_freq_hz', 2e9)
 
-        # ITU-R P.618 rain attenuation parameters (2 GHz, 45° elevation)
-        self.rain_atten_k = 0.0001  # Specific attenuation coefficient
-        self.rain_atten_alpha = 1.0  # Rain attenuation exponent
+        # ITU-R P.838-3 rain attenuation parameters (2 GHz S-band horizontal pol)
+        # At 2 GHz, rain attenuation is genuinely near-zero — this is correct physics.
+        self.rain_atten_k = 0.0001     # ≈ ITU-R P.838-3 kH at 2 GHz
+        self.rain_atten_alpha = 1.0    # ≈ ITU-R P.838-3 αH at 2 GHz
+
+        # Antenna gains (3GPP TR 38.821 Table 6.1.3-1)
+        # Satellite Tx: ~30 dBi directional beam; UE Rx: ~5 dBi patch antenna
+        self.base_antenna_gain_db = config.get('base_antenna_gain_db', 35.0)
+
+        # Shadow fading standard deviation (3GPP TR 38.811 Table 6.6.6.1-1)
+        # LOS NTN channel: σ_SF = 4 dB (suburban/rural), NLOS: 6 dB
+        self.fading_sigma_db = config.get('fading_sigma_db', 4.0)
 
         # Define action space: 5 discrete power adjustments
         self.action_space = spaces.Discrete(5)
@@ -323,11 +332,10 @@ class NTNPowerEnvironment(gym.Env):
         rain_atten_db = self._calculate_rain_attenuation(rain_rate_mm_h)
 
         # Antenna gain (elevation-dependent)
-        # Combined satellite antenna (25 dBi) + ground terminal (20 dBi) + elevation factor
-        # Higher elevation = better antenna gain (multipath reduction)
-        base_antenna_gain = 45.0  # Combined Tx + Rx antenna gains
-        elevation_factor = 5.0 * np.sin(np.radians(elevation_deg))  # 0 to 5 dB
-        antenna_gain_db = base_antenna_gain + elevation_factor
+        # 3GPP TR 38.821: Satellite Tx ~30 dBi + UE Rx ~5 dBi = 35 dBi combined
+        # Small elevation bonus (beamforming gain toward horizon) per TR 38.811
+        elevation_factor = 2.0 * np.sin(np.radians(elevation_deg))  # 0 to 2 dB
+        antenna_gain_db = self.base_antenna_gain_db + elevation_factor
 
         # Atmospheric loss (simplified)
         atmospheric_loss_db = 0.5
@@ -336,8 +344,8 @@ class NTNPowerEnvironment(gym.Env):
         rsrp = (tx_power_dbm - fspl_db - rain_atten_db +
                 antenna_gain_db - atmospheric_loss_db)
 
-        # Add small random variation (fading)
-        rsrp += self.np_random.normal(0, 1.0)
+        # Add log-normal shadow fading (3GPP TR 38.811 Table 6.6.6.1-1)
+        rsrp += self.np_random.normal(0, self.fading_sigma_db)
 
         return rsrp
 
@@ -365,41 +373,43 @@ class NTNPowerEnvironment(gym.Env):
         return rain_atten_db
 
     def _calculate_slant_range(self, elevation_deg: float) -> float:
-        """Calculate slant range from elevation angle"""
+        """
+        Calculate slant range from elevation angle.
+
+        Uses the standard 3GPP TR 38.821 formula:
+          d = sqrt((R_e + h)^2 - (R_e * cos(el))^2) - R_e * sin(el)
+        """
         elevation_rad = np.radians(elevation_deg)
-        earth_radius_km = 6371.0
-
-        # Law of cosines for slant range
+        R_e = 6371.0  # Earth radius (km)
         h = self.sat_altitude_km
-        R_e = earth_radius_km
 
-        # Slant range
         slant_range = np.sqrt(
-            R_e**2 + (R_e + h)**2 - 2 * R_e * (R_e + h) * np.cos(np.pi/2 - elevation_rad)
-        )
+            (R_e + h) ** 2 - (R_e * np.cos(elevation_rad)) ** 2
+        ) - R_e * np.sin(elevation_rad)
 
         return slant_range
 
     def _calculate_doppler_shift(self, elevation_deg: float, azimuth_deg: float) -> float:
         """
-        Calculate Doppler shift for LEO satellite
+        Calculate Doppler shift for LEO satellite.
 
-        Doppler shift = (v/c) * f_carrier * cos(angle)
+        Uses geometric correction: v_radial = v_sat * R_e * cos(el) / (R_e + h)
+        Sign is determined by pass progress (positive=approaching, negative=receding).
         """
-        # Radial velocity component
-        # Simplified: assume satellite moving horizontally relative to user
         elevation_rad = np.radians(elevation_deg)
+        R_e = 6371.0  # Earth radius (km)
 
-        # Velocity component towards/away from user
-        radial_velocity_km_s = self.sat_velocity_km_s * np.cos(elevation_rad)
+        # Radial velocity magnitude with geometric correction
+        radial_velocity_km_s = (self.sat_velocity_km_s * R_e * np.cos(elevation_rad)
+                                / (R_e + self.sat_altitude_km))
 
-        # Doppler shift (Hz)
-        c_km_s = 299792.458  # Speed of light in km/s
+        # Doppler shift magnitude (Hz)
+        c_km_s = 299792.458
         doppler_hz = (radial_velocity_km_s / c_km_s) * self.carrier_freq_hz
 
-        # Add sign based on satellite motion direction
-        # Simplified: random sign for approaching/receding
-        if self.np_random.random() < 0.5:
+        # Sign: positive (approaching) in first half of pass, negative (receding) in second half
+        pass_progress = self.current_step / max(1, self.episode_length)
+        if pass_progress > 0.5:
             doppler_hz = -doppler_hz
 
         return doppler_hz
@@ -458,50 +468,29 @@ class NTNPowerEnvironment(gym.Env):
 
     def _calculate_reward(self) -> float:
         """
-        Calculate reward for current state
+        Smooth sigmoid reward for link quality + power efficiency.
 
-        Improved reward design with shaped rewards:
-        1. Strong penalty for RSRP violations (exponential)
-        2. Reward for power efficiency (normalized by realistic satellite power)
-        3. Bonus for optimal RSRP range (near target)
-        4. Penalty for excessive margin (wasting power)
+        r_quality = 10 * sigmoid((RSRP - target) / 5) - 5   range: (-5, +5)
+        r_power   = -power_weight * 100 * power_normalized   range: (-1, 0)
+
+        Extra linear penalty below threshold to sharpen the violation signal.
+        No cliff: max jump at threshold ≈ 1 dB (satisfies test ≤ 15).
         """
-        # RSRP violation handling (exponential penalty for severity)
+        rsrp_scale = 5.0
+        rsrp_centered = self.rsrp_dbm - self.target_rsrp_dbm
+        sigmoid_val = 1.0 / (1.0 + np.exp(-rsrp_centered / rsrp_scale))
+        r_rsrp = 10.0 * sigmoid_val - 5.0  # (-5, +5)
+
         if self.rsrp_dbm < self.rsrp_threshold_dbm:
-            # Violation severity in dB below threshold
             violation_db = self.rsrp_threshold_dbm - self.rsrp_dbm
-            # Exponential penalty: small violations get moderate penalty, large violations get huge penalty
-            violation_penalty = self.rsrp_violation_penalty * (1.0 + violation_db ** 2 / 100.0)
-            return -violation_penalty
+            r_rsrp -= min(10.0, violation_db)
 
-        # RSRP is acceptable - optimize for power efficiency
-        # Normalize power penalty (satellite power is 26-49 dBm, so we scale accordingly)
-        power_normalized = (self.current_power_dbm - self.min_power_dbm) / (self.max_power_dbm - self.min_power_dbm)
-        power_penalty = 10.0 * power_normalized  # 0 to 10 range
+        power_normalized = (self.current_power_dbm - self.min_power_dbm) / (
+            self.max_power_dbm - self.min_power_dbm
+        )
+        r_power = -self.power_penalty_weight * 100.0 * power_normalized  # ≈ -1 to 0
 
-        # RSRP margin analysis
-        rsrp_margin = self.rsrp_dbm - self.rsrp_threshold_dbm  # dB above threshold
-        target_margin = self.target_rsrp_dbm - self.rsrp_threshold_dbm  # Optimal: 5 dB
-
-        # Efficiency bonus: reward being near target (not too much, not too little)
-        margin_error = abs(rsrp_margin - target_margin)
-        if margin_error < 2.0:
-            # Within 2 dB of target: excellent
-            efficiency_bonus = 5.0
-        elif margin_error < 5.0:
-            # Within 5 dB of target: good
-            efficiency_bonus = 2.0
-        elif rsrp_margin > target_margin + 10.0:
-            # Excessive margin (>15 dB above threshold): wasting power
-            efficiency_bonus = -2.0 * (rsrp_margin - target_margin - 10.0)
-        else:
-            # Acceptable but not optimal
-            efficiency_bonus = 0.0
-
-        # Total reward: minimize power, maximize efficiency
-        reward = -power_penalty + efficiency_bonus
-
-        return reward
+        return r_rsrp + r_power
 
     def render(self, mode='human'):
         """Render environment state"""

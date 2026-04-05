@@ -95,8 +95,11 @@ class BasicNTNSimulator:
         freq_ghz = 2.0  # S-band
         c = 3e8 / 1000  # km/s
 
-        # Radial velocity component
-        v_radial = satellite_velocity_kmps * np.cos(np.deg2rad(90 - elevation_angle_deg))
+        # Radial velocity with geometric correction (3GPP TR 38.821)
+        R_e = 6371.0  # Earth radius (km)
+        h = 600.0  # Satellite altitude (km), default LEO
+        el_rad = np.deg2rad(elevation_angle_deg)
+        v_radial = satellite_velocity_kmps * R_e * np.cos(el_rad) / (R_e + h)
 
         # Doppler shift
         doppler_hz = (v_radial / c) * freq_ghz * 1e9
