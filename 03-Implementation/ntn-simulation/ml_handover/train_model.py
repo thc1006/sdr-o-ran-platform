@@ -147,13 +147,25 @@ def main():
     )
     X_test, y_test = test_generator.generate_training_data()
 
-    # Simulate predictions for evaluation (since TF may not be available)
-    # In real scenario, would use: y_pred_ml = trainer.model.predict(X_test)
-    y_pred_ml = y_test + np.random.normal(0, 0.02, y_test.shape)  # Simulated ML predictions
+    # ML predictions: require actual model inference
+    if not hasattr(trainer, 'model') or trainer.model is None:
+        print("\nERROR: No trained model available. Cannot evaluate.")
+        print("Install TensorFlow and re-run to get valid evaluation results.")
+        print("Exiting without reporting fake metrics.")
+        sys.exit(1)
+
+    y_pred_ml = trainer.model.predict(X_test)
     y_pred_ml = np.clip(y_pred_ml, 0, 1)
 
-    y_pred_baseline = y_test + np.random.normal(0, 0.05, y_test.shape)  # Simulated baseline
-    y_pred_baseline = np.clip(y_pred_baseline, 0, 1)
+    # Threshold-based reactive baseline: predict handover when RSRP < -80 dBm
+    # Uses the last timestep's RSRP feature (index 0) from the sequence
+    rsrp_feature_idx = 0
+    rsrp_threshold = -80.0
+    last_rsrp = X_test[:, -1, rsrp_feature_idx]
+    # Normalize: feature is stored as (rsrp - mean) / std; approximate raw value
+    # Use median split as conservative threshold if normalization is unknown
+    rsrp_median = np.median(last_rsrp)
+    y_pred_baseline = (last_rsrp < rsrp_median).astype(float).reshape(-1, 1)
 
     evaluator = HandoverEvaluator()
     eval_results = evaluator.evaluate_full_pipeline(y_test, y_pred_ml, y_pred_baseline)

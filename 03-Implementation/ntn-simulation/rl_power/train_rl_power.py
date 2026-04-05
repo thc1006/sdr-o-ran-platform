@@ -112,10 +112,10 @@ def main():
         'episode_length': args.episode_length,
         'target_rsrp_dbm': args.target_rsrp,
         'rsrp_threshold_dbm': args.rsrp_threshold,
-        # Use environment defaults for realistic LEO satellite power (46 dBm)
-        # and antenna gains (45 dB combined). No overrides needed.
+        # Physics-corrected parameters (3GPP TR 38.821 / TR 38.811):
+        #   base_antenna_gain_db = 35 dBi (Sat 30 + UE 5)
+        #   fading_sigma_db = 4 dB (LOS NTN shadow fading)
         'power_penalty_weight': 0.01,
-        'rsrp_violation_penalty': 100.0
     }
     env = NTNPowerEnvironment(config=env_config)
     print(f"Environment created: {env.observation_space.shape[0]}-D state, "

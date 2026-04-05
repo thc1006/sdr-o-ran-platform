@@ -259,29 +259,34 @@ class HandoverDataGenerator:
 
     def _generate_doppler_from_elevation(self, elevation: np.ndarray) -> np.ndarray:
         """
-        Generate Doppler shift based on satellite geometry
+        Generate Doppler shift based on satellite geometry.
 
-        Doppler depends on elevation angle and satellite velocity
-        Maximum Doppler at horizon, zero at zenith
+        Uses geometric correction: v_radial = v_sat * R_e * cos(el) / (R_e + h)
+        Sign determined by pass phase (approaching → positive, receding → negative).
         """
-        # Doppler is maximum when satellite is approaching/receding (low elevation)
-        # Zero when directly overhead (90 degrees)
+        R_e = 6371.0  # Earth radius (km)
+        h = 600.0     # LEO altitude (km)
+        v_sat = 7.56  # Orbital velocity (km/s)
+        f_carrier = 2e9  # 2 GHz
+        c = 299792.458  # Speed of light (km/s)
 
-        # Random approaching or receding
-        direction = np.random.choice([-1, 1])
+        # Radial velocity with geometric correction
+        el_rad = np.deg2rad(elevation)
+        v_radial = v_sat * R_e * np.cos(el_rad) / (R_e + h)
 
-        # Calculate Doppler based on elevation
-        # Maximum Doppler at horizon (0 degrees), zero at zenith (90 degrees)
-        max_doppler = np.random.uniform(10000, 14000)  # Hz
+        # Doppler magnitude
+        doppler = (v_radial * 1000 / (c * 1000)) * f_carrier
 
-        doppler = direction * max_doppler * np.cos(np.deg2rad(elevation))
+        # Sign: determined by pass trajectory
+        # In a sequence, first half is approaching (+), second half receding (-)
+        n = len(elevation)
+        sign = np.ones(n)
+        sign[n // 2:] = -1.0
+        doppler *= sign
 
-        # Add small random variations
-        noise = np.random.normal(0, 200, size=elevation.shape)
+        # Add small measurement noise
+        noise = np.random.normal(0, 100, size=elevation.shape)
         doppler += noise
-
-        # Clip to realistic range
-        doppler = np.clip(doppler, -15000, 15000)
 
         return doppler
 

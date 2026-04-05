@@ -378,7 +378,7 @@ class ComparativeSimulator:
 
         # Calculate path loss
         freq_ghz = 2.0
-        fspl_db = 20 * np.log10(slant_range) + 20 * np.log10(freq_ghz * 1000) + 92.45
+        fspl_db = 92.45 + 20 * np.log10(freq_ghz) + 20 * np.log10(slant_range)
 
         # Link budget
         tx_power = 20.0
@@ -390,8 +390,11 @@ class ComparativeSimulator:
         required_snr = 9.0
         link_margin = sinr - required_snr
 
-        # RSRP (varies with elevation)
-        rsrp = -70.0 - (90 - elevation) * 0.5
+        # RSRP via physics-based link budget (3GPP TR 38.821)
+        tx_power_dbm = 46.0        # Satellite Tx power (dBm)
+        antenna_gain_dbi = 35.0    # Combined Sat Tx + UE Rx (3GPP TR 38.821)
+        atm_loss_db = 0.5          # Atmospheric loss (simplified)
+        rsrp = tx_power_dbm + antenna_gain_dbi - fspl_db - rain_atten - atm_loss_db
 
         return {
             'satellite_metrics': {
@@ -463,51 +466,48 @@ class ComparativeSimulator:
             if system_type == 'predictive':
                 metrics.weather_aware = getattr(pe, 'weather_aware', False)
 
-        # Calculate throughput (affected by link quality and handovers)
+        # Calculate throughput from link quality (Shannon capacity approximation)
+        # Base throughput derived from SINR, not system type label
         base_throughput = 50.0
         if metrics.handover_triggered and not metrics.handover_success:
-            base_throughput *= 0.3  # Significant degradation on failed handover
+            # Failed handover interrupts service regardless of system type
+            base_throughput *= 0.3
         elif metrics.handover_triggered:
-            # Predictive: minimal impact, Reactive: moderate impact
-            if system_type == 'reactive':
-                base_throughput *= 0.85
-            else:
-                base_throughput *= 0.95
+            # Handover interruption: determined by actual handover_execution_time_ms
+            # Shorter execution time → less throughput loss (physics-based)
+            if metrics.handover_execution_time_ms > 0:
+                # 1 ms interruption ≈ 0.1% throughput loss in a 1-second window
+                interruption_fraction = min(
+                    metrics.data_interruption_ms / 1000.0, 0.5)
+                base_throughput *= (1.0 - interruption_fraction)
 
-        # Rain fade impact on throughput
-        if metrics.rain_attenuation_db > 5:
-            if system_type == 'reactive':
-                base_throughput *= 0.7  # Reactive struggles with rain
-            elif metrics.weather_aware:
-                base_throughput *= 0.90  # Predictive mitigates well
-            else:
-                base_throughput *= 0.80
+        # Rain fade impact: derived from actual link margin, not system label
+        if metrics.link_margin_db < 3.0:
+            # Adaptive modulation reduces throughput when margin is low
+            margin_factor = max(0.3, metrics.link_margin_db / 10.0 + 0.7)
+            base_throughput *= margin_factor
 
         metrics.throughput_mbps = base_throughput * (1 + np.random.normal(0, 0.1))
 
-        # Calculate latency
-        base_latency = 15.0  # Base satellite latency
+        # Calculate latency: base satellite propagation + handover overhead
+        slant_range_m = metrics.slant_range_km * 1000
+        propagation_delay_ms = slant_range_m / 299792458.0 * 1000  # one-way RTT
+        base_latency = 2 * propagation_delay_ms  # round-trip
         if metrics.handover_triggered:
-            if system_type == 'reactive':
-                base_latency += 50  # Reactive handover adds latency
-            else:
-                base_latency += 10  # Predictive adds minimal latency
+            # Handover adds execution time as latency, regardless of system type
+            base_latency += metrics.handover_execution_time_ms
 
-        metrics.latency_ms = base_latency * (1 + np.random.normal(0, 0.1))
+        metrics.latency_ms = base_latency * (1 + np.random.normal(0, 0.05))
 
-        # Calculate packet loss
-        base_loss = 0.005
+        # Calculate packet loss: from handover failure and link margin
+        base_loss = 0.001  # Background loss floor
         if metrics.handover_triggered and not metrics.handover_success:
-            base_loss = 0.15  # High loss on failed handover
-        elif metrics.rain_attenuation_db > 5:
-            if system_type == 'reactive':
-                base_loss = 0.08
-            elif metrics.weather_aware:
-                base_loss = 0.01
-            else:
-                base_loss = 0.05
+            base_loss = 0.15  # Failed handover → high packet loss
+        elif metrics.link_margin_db < 0:
+            # Link outage: packet loss proportional to margin deficit
+            base_loss = min(0.5, 0.05 * abs(metrics.link_margin_db))
 
-        metrics.packet_loss_rate = base_loss * (1 + np.random.normal(0, 0.2))
+        metrics.packet_loss_rate = max(0, base_loss * (1 + np.random.normal(0, 0.2)))
 
         return metrics
 
