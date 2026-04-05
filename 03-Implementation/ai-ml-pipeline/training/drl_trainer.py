@@ -46,6 +46,12 @@ except ImportError:
     print("⚠️  Warning: stable-baselines3 not installed")
     print("   Run: pip install stable-baselines3[extra]")
 
+    # Provide a stub so class definitions below don't raise NameError
+    class BaseCallback:  # type: ignore[no-redef]
+        """Stub when stable-baselines3 is not installed."""
+        def __init__(self, verbose=0):
+            pass
+
 # Gymnasium (OpenAI Gym successor)
 try:
     import gymnasium as gym
