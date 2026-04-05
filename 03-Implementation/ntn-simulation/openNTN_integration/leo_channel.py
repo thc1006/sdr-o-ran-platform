@@ -11,10 +11,18 @@ Date: 2025-11-17
 """
 
 import numpy as np
-import tensorflow as tf
 from typing import Tuple, Optional, Dict, Any, Literal
 import sys
 import os
+
+# TensorFlow is required only when Sionna GPU-accelerated channel models are
+# used.  Importing it at module load time would block every downstream import
+# in environments where TF is not installed (e.g. CI, lightweight deployments).
+# We keep the symbol available for compatibility but do not hard-require it.
+try:
+    import tensorflow as tf  # noqa: F401  (used transitively by sionna)
+except ImportError:
+    tf = None  # type: ignore[assignment]
 
 # Add OpenNTN to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'OpenNTN'))
