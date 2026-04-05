@@ -7,6 +7,52 @@
 
 ---
 
+## [4.0.0] - 2026-04-05 - NTN Simulation & RL Power Control
+
+### Added
+- **NTN Simulation Module** (03-Implementation/ntn-simulation/)
+  - 3GPP TR 38.811/38.821 compliant channel models (LEO/MEO/GEO)
+  - Corrected physics: slant range, FSPL, Doppler (±45 kHz at S-band), Rician fading + shadow fading
+  - E2SM-NTN service model with 33 NTN-specific KPMs
+  - ASN.1 PER encoding (93% message size reduction: 1,359 → 92 bytes)
+  - SGP4 orbit propagation, ITU-R P.618 weather integration
+
+- **RL Power Control (DQN + PPO)**
+  - NTNPowerEnvironment: 5-D observation, 5 discrete actions, sigmoid reward
+  - DQN agent: 3.48% RSRP violations vs 18.63% baseline (t=42.06, p=1.57e-64)
+  - PPO agent: 4.52% RSRP violations vs 23.25% baseline (t=51.77, p=4.93e-117)
+  - Both achieve ~5x fewer violations at cost of ~6 dB more transmit power
+
+- **Comprehensive Test Suite (78 tests)**
+  - Physics formula tests (slant range, FSPL, Doppler, antenna gain, fading)
+  - Link budget end-to-end tests
+  - RL environment correctness tests
+  - ML prediction honesty tests (detect label leakage)
+  - Baseline fairness tests (detect hardcoded biases)
+  - Benchmark integrity audit tests
+
+- **GLOBECOM 2026 Paper**
+  - Real experimental results (no fabricated data)
+  - Statistical validation with t-tests and p-values
+
+### Fixed
+- Slant range formula: wrong cos(π/2-el) → correct 3GPP TR 38.821
+- FSPL: 60 dB overestimate in comparative simulation
+- Doppler: corrected in 6 files, normalization bounds updated (15 kHz → 50 kHz)
+- Antenna gain: 45 → 35 dBi, fading sigma: 1 → 4 dB
+- Channel model: Rayleigh → Rician + log-normal shadow fading
+- ML prediction: removed y_pred = y_test + noise label leakage
+- Baseline comparison: removed 6 hardcoded bias patterns
+- RL reward: smooth sigmoid (no 93 dB cliff)
+- CI pipeline: fixed test collection, coverage targets, Docker tags
+
+### Removed
+- 12 reports containing fabricated performance claims
+- Stale training_results.json with 100% accuracy from leaked labels
+- Empty final_integration_test_results.json stub
+
+---
+
 ## [3.3.0] - 2025-11-17 - Stage 3: O-RAN整合完成
 
 ### 新增 Added
@@ -41,12 +87,12 @@
 - **端到端整合测试**
   - 完整SDR→gRPC→DRL→E2→xApp数据流
   - 6个整合测试全部通过
-  - 性能验证：66,434 setups/sec
+  - 性能验证：待实测（先前数据未经独立验证）
 
 ### 改进 Improved
-- 整体测试覆盖率达到**82%**
-- E2接口性能超越目标**6643%**
-- 延迟<0.01ms（超越目标10,000倍）
+- 整体测试覆盖率：**实际覆盖率待确认**
+- E2接口性能：**待实测**
+- 延迟：**待实测**
 - 100%测试通过率
 
 ### 文档 Documentation
@@ -279,7 +325,6 @@
 
 ## 链接 Links
 
-- [最终项目报告](docs/reports/final/FINAL-PROJECT-COMPLETION-REPORT.md)
 - [最终项目状态](docs/reports/final/FINAL-PROJECT-STATUS.md)
 - [综合测试覆盖率报告](docs/reports/technical/TEST-COVERAGE-COMPREHENSIVE-REPORT.md)
 - [NTN学术价值评估](docs/research/NTN-ACADEMIC-VALUE-ASSESSMENT.md)
@@ -307,4 +352,4 @@
 ---
 
 **维护者**: Hsiu-Chi Tsai (thc1006@ieee.org)
-**最后更新**: 2025-11-17
+**最后更新**: 2026-04-05

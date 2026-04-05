@@ -2,8 +2,8 @@
 
 **Author**: Hsiu-Chi Tsai (thc1006@ieee.org)
 **Project Type**: Research & Development Platform
-**Last Updated**: 2025-11-17
-**Version**: 3.3.0
+**Last Updated**: 2026-04-05
+**Version**: 4.0.0
 
 [![CI/CD](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/thc1006/sdr-o-ran-platform/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Research-blue.svg)](LICENSE)
@@ -28,7 +28,7 @@ This project is a research and development platform integrating Software-Defined
 
 ## Project Status
 
-**Overall Completion**: Approximately 70-75% (Core components tested, hardware integration pending)
+**Overall Completion**: Approximately 85% (Core components tested, hardware integration pending)
 
 ### Component Status
 
@@ -43,8 +43,9 @@ This project is a research and development platform integrating Software-Defined
 | O-RAN gNB | Complete (1,147 lines) | Not tested | Yes | Code exists, requires validation |
 | Near-RT RIC | Complete (891 lines) | Not tested | Partial | Requires RIC framework |
 | Orchestration | Complete (743 lines) | K8s manifests created | K8s cluster | Deployment not verified |
+| NTN Simulation | Complete (8,000+ lines) | 78 unit tests pass | No | RL power control (DQN+PPO) validated |
 
-**Total Lines of Code**: 6,337 lines of production Python code
+**Total Lines of Code**: 14,000+ lines of production Python code
 
 ### What Works
 
@@ -55,6 +56,11 @@ This project is a research and development platform integrating Software-Defined
   - Doppler shift validation: ±40 kHz range verified
   - Propagation delay: 5-25 ms LEO characteristics confirmed
   - Zero packet loss, stable real-time streaming
+- **NTN Simulation** with 3GPP TR 38.811/38.821 compliant physics (slant range, FSPL, Doppler, Rician fading)
+- **RL Power Control**: DQN (3.48% RSRP violations, p=1.57e-64) and PPO (4.52%, p=4.93e-117) vs rule-based baseline (18-23%)
+- **78 unit tests** covering physics formulas, ML honesty, baseline fairness, benchmark integrity
+- **E2SM-NTN service model** with 33 NTN-specific KPMs
+- **ASN.1 PER encoding** (93% message size reduction)
 - SDR API Gateway with 18 RESTful endpoints (FastAPI + OAuth2 + JWT)
 - gRPC bidirectional streaming services (VITA 49.2 VRT on port 50051)
 - DRL training pipeline (PPO/SAC algorithms, 1000 timesteps)
@@ -64,30 +70,30 @@ This project is a research and development platform integrating Software-Defined
 
 ### What Requires Work
 
-- Unit test coverage currently at ~15% (target: 60-80%)
+- 54 unit tests passing in CI, NTN simulation 78 tests locally
 - Hardware integration requires USRP X310 (not available, $7,500)
 - Traffic Steering xApp needs O-RAN SC ricxappframe
 - End-to-end integration testing not yet performed
 - Production hardening and security audit needed
 - Performance benchmarking on actual hardware
 
-### Recent Updates (2025-11-12)
+### Recent Updates (2026-04-05)
 
-- **LEO-SDR Integration Testing Completed**:
-  - Live testing: 38,000+ frames transmitted, 14,694+ frames received
-  - 4.5 billion IQ samples processed (4,513,996,800 samples)
-  - Doppler compensation validated: ±40 kHz range
-  - LEO channel characteristics confirmed: 5-25 ms propagation delay, 165 dB FSPL
-  - Created test receiver program with signal analysis visualization
-- **Project Reorganization**:
-  - Moved 12 files to organized subdirectories (docs/deployment/, docs/reports/, scripts/)
-  - Added bilingual technical reports index
-  - Created comprehensive technical documentation
-- **Deployment Verification**:
-  - Docker containers operational: leo-ntn-simulator + sdr-gateway
-  - ZeroMQ streaming: 0% packet loss in extended testing
-  - RESTful API endpoints verified: /api/v1/leo/iq-stats, /api/v1/leo/iq-buffer
-- Security fixes applied (removed hardcoded credentials, added input validation)
+- **TDD Physics Bug-Fix Campaign**:
+  - Corrected slant range formula (3GPP TR 38.821 compliant)
+  - Fixed FSPL (removed 60 dB overestimate in comparative simulation)
+  - Corrected Doppler calculations in 6 files, normalization bounds updated (15 kHz to 50 kHz)
+  - Fixed antenna gain (45 to 35 dBi) and fading model (Rayleigh to Rician + log-normal shadow fading, sigma 1 to 4 dB)
+- **RL Power Control**:
+  - DQN and PPO agents trained and evaluated with real experiments
+  - DQN: 3.48% RSRP violations vs 18.63% baseline (t=42.06, p=1.57e-64)
+  - PPO: 4.52% RSRP violations vs 23.25% baseline (t=51.77, p=4.93e-117)
+- **Benchmark Honesty Audit**:
+  - Removed fabricated performance results
+  - Removed label leakage in ML prediction (y_pred = y_test + noise)
+  - Removed 6 hardcoded bias patterns in baseline comparisons
+- **CI Pipeline Fixed**: all jobs green
+- **GLOBECOM 2026 Paper**: updated with real experimental data
 
 **Detailed Reports**:
 - [LEO-SDR Integration Report (繁體中文)](docs/reports/LEO-SDR-整合報告.md)
@@ -438,8 +444,9 @@ This project is a research and development platform. Licensing terms are subject
 | v0.1.0 | 2023-09 | Initial research and RunSpace competition submission |
 | v2.0.0 | 2025-10-26 | MBSE models, SDR platform, O-RAN integration baseline |
 | v3.0.0 | 2025-11-12 | LEO-SDR integration, AI/ML pipeline, quantum security, documentation reorganization |
+| v4.0.0 | 2026-04-05 | NTN simulation module, RL power control (DQN+PPO), TDD physics corrections, GLOBECOM 2026 paper |
 
 ---
 
-**Last Updated**: 2025-11-12
+**Last Updated**: 2026-04-05
 **Maintained By**: Hsiu-Chi Tsai (thc1006@ieee.org)
