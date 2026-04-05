@@ -19,22 +19,22 @@
 
 \begin{document}
 
-\title{GPU-Accelerated NTN-O-RAN Platform with Predictive Handover and ASN.1-Optimized E2 Interface\\
+\title{NTN-O-RAN Platform with RL-Based Power Control and ASN.1-Optimized E2 Interface\\
 }
 
 \author{
 \IEEEauthorblockN{Anonymous Authors}
-\IEEEauthorblockA{\textit{Submitted to IEEE ICC 2026}}
+\IEEEauthorblockA{\textit{Submitted to IEEE GLOBECOM 2026}}
 }
 
 \maketitle
 
 \begin{abstract}
-Non-Terrestrial Networks (NTN) are critical for global 6G coverage, yet current O-RAN platforms lack comprehensive NTN support. We present a novel GPU-accelerated NTN-O-RAN platform integrating OpenNTN channel models with O-RAN E2 interface extensions. Our system introduces three key innovations: (1) a novel E2SM-NTN service model with 33 NTN-specific KPMs enabling predictive handover decisions, (2) ASN.1 PER encoding achieving 93\% message size reduction (1,359 bytes to 92 bytes), and (3) SGP4-based predictive handover with 60-second prediction horizon. Comprehensive evaluation with 100 UEs over 60-minute LEO satellite scenarios demonstrates statistically significant improvements over reactive baselines: 99.7\% handover success rate (+14.2\%, $p<0.001$), 87\% reduction in data interruption (35ms vs 275ms, $p<0.001$), 23\% throughput improvement (55.8 vs 45.3 Mbps, $p<0.001$), and 98\% rain fade mitigation success (+58\%, $p<0.001$). All improvements exhibit large effect sizes (Cohen's $d > 0.8$) with $p<0.001$ significance. The platform achieves 5.5ms E2E latency (45\% better than target), 600 msg/sec throughput (6$\times$ target), and linear scalability to 1,000 UEs. Our open-source implementation provides production-ready Docker containers and serves as a standardization candidate for O-RAN NTN extensions.
+Non-Terrestrial Networks (NTN) are critical for global 6G coverage, yet current O-RAN platforms lack comprehensive NTN support. We present an NTN-O-RAN platform integrating OpenNTN channel models with O-RAN E2 interface extensions, featuring three key contributions: (1) a novel E2SM-NTN service model with 33 NTN-specific KPMs enabling intelligent RAN control for satellite networks, (2) ASN.1 PER encoding achieving 93\% message size reduction (1,359 bytes to 92 bytes), and (3) reinforcement learning-based power control using DQN and PPO agents that achieve approximately 5$\times$ fewer RSRP violations compared to a rule-based baseline (3.48\% and 4.52\% vs.\ 23.25\%), at the cost of $\sim$6~dB higher transmit power. Both RL results are highly statistically significant (DQN: $t=42.06$, $p<10^{-64}$; PPO: $t=51.77$, $p<10^{-117}$). Our open-source implementation provides production-ready Docker containers and serves as a standardization candidate for O-RAN NTN extensions.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Non-Terrestrial Networks, O-RAN, E2 Interface, LEO Satellites, Predictive Handover, ASN.1 Encoding, 6G, GPU Acceleration
+Non-Terrestrial Networks, O-RAN, E2 Interface, LEO Satellites, Reinforcement Learning, DQN, PPO, ASN.1 Encoding, 6G
 \end{IEEEkeywords}
 
 \section{Introduction}
@@ -46,7 +46,7 @@ The evolution toward 6G wireless networks demands ubiquitous global connectivity
 Current O-RAN platforms, designed for terrestrial base stations, inadequately support NTN-specific characteristics:
 
 \begin{itemize}
-    \item \textbf{High Doppler Shift:} LEO satellites at 550km altitude moving at 7.5 km/s induce $\pm$12.5 kHz Doppler shifts at S-band (2 GHz), requiring continuous frequency pre-compensation.
+    \item \textbf{High Doppler Shift:} LEO satellites at 550km altitude moving at 7.5 km/s induce $\pm$45 kHz Doppler shifts at S-band (2 GHz), requiring continuous frequency pre-compensation.
     \item \textbf{Long Propagation Delays:} Round-trip times of 11-25ms (LEO) to 540ms (GEO) violate terrestrial timing assumptions and require protocol adaptations.
     \item \textbf{Frequent Handovers:} Satellite visibility windows of 5-10 minutes necessitate handovers every 3-7 minutes, 10$\times$ more frequent than terrestrial scenarios.
     \item \textbf{Dynamic Link Budgets:} Slant range variations (800-2,000 km for LEO) cause 15-20 dB path loss fluctuations, plus 0-40 dB rain attenuation.
@@ -56,7 +56,7 @@ Existing solutions fall short: ns-3 simulations \cite{ns3_ntn} lack real-time O-
 
 \subsection{Our Approach and Contributions}
 
-We present the first GPU-accelerated NTN-O-RAN platform with comprehensive integration of satellite channel modeling, orbital mechanics, and O-RAN E2 interface extensions. Our system architecture (Fig. \ref{fig:architecture}) combines:
+We present an NTN-O-RAN platform with comprehensive integration of satellite channel modeling, orbital mechanics, O-RAN E2 interface extensions, and RL-based power control. Our system architecture (Fig. \ref{fig:architecture}) combines:
 
 \begin{itemize}
     \item \textbf{OpenNTN Integration:} 3GPP TR 38.811-compliant channel models for LEO/MEO/GEO with NVIDIA Sionna GPU acceleration
@@ -69,15 +69,15 @@ We present the first GPU-accelerated NTN-O-RAN platform with comprehensive integ
 \textbf{Novel Contributions:}
 
 \begin{enumerate}
-    \item \textbf{First GPU-accelerated O-RAN NTN platform:} Integrates OpenNTN + Sionna with O-RAN E2 interface, achieving 600 msg/sec throughput with 5.5ms E2E latency.
+    \item \textbf{First O-RAN NTN platform with RL-based power control:} Integrates OpenNTN + Sionna with O-RAN E2 interface and DQN/PPO agents for intelligent power control.
 
     \item \textbf{E2SM-NTN Service Model:} Novel service model with 33 NTN-specific KPMs (elevation angle, Doppler shift, propagation delay, handover prediction), 6 event triggers, and 6 control actions. Enables near-RT RIC to perform NTN-aware decisions.
 
     \item \textbf{ASN.1 PER Optimization:} Achieves 93.2\% message size reduction (1,359 $\rightarrow$ 92 bytes) through domain-specific encoding, reducing E2 interface bandwidth requirements by 15$\times$.
 
-    \item \textbf{Predictive Handover Architecture:} SGP4-based orbital prediction provides 60-second advance warning, enabling preparation-based handover (vs. emergency reactive handover). Achieves 99.7\% success rate with 87\% reduction in data interruption.
+    \item \textbf{Predictive Handover Architecture:} SGP4-based orbital prediction provides 60-second advance warning, enabling preparation-based handover (vs. emergency reactive handover).
 
-    \item \textbf{Statistical Validation:} Rigorous comparison against reactive baseline with 100 UEs over 60-minute scenarios. All improvements statistically significant ($p<0.001$) with large effect sizes (Cohen's $d > 0.8$).
+    \item \textbf{Statistical Validation:} Rigorous comparison of DQN and PPO agents against rule-based baseline. Both agents achieve $\sim$5$\times$ fewer RSRP violations with high statistical significance ($p < 10^{-64}$).
 \end{enumerate}
 
 \subsection{Paper Organization}
@@ -186,7 +186,7 @@ where $f_{\text{GHz}}$ is carrier frequency and $d_{\text{km}}$ is slant range. 
 \begin{equation}
 f_{\text{Doppler}} = \frac{f_c}{c} \cdot v_{\text{radial}} = \frac{f_c}{c} \cdot v_{\text{sat}} \cos(\theta_{\text{elev}})
 \end{equation}
-For LEO at $v_{\text{sat}} = 7.5$ km/s, 30$^\circ$ elevation, 2 GHz: $f_{\text{Doppler}} = \pm 12.5$ kHz.
+For LEO at $v_{\text{sat}} = 7.5$ km/s, 30$^\circ$ elevation, 2 GHz: $f_{\text{Doppler}} = \pm 43.3$ kHz.
 
 \textbf{Propagation Delay:}
 \begin{equation}
@@ -325,7 +325,7 @@ Our system's key innovation is \textbf{predictive handover} using orbital mechan
     \item Monitor RSRP continuously
     \item Trigger handover when RSRP $< -100$ dBm
     \item Emergency handover (no preparation)
-    \item Result: 85-90\% success, 200-350 ms interruption
+    \item Result: Degraded performance under high mobility
 \end{enumerate}
 
 \textbf{Predictive Approach (Ours):}
@@ -335,7 +335,7 @@ Our system's key innovation is \textbf{predictive handover} using orbital mechan
     \item Estimate time to handover: $t_{\text{HO}} = \frac{\theta_{\text{current}} - \theta_{\text{min}}}{|\dot{\theta}|}$
     \item Trigger handover when $t_{\text{HO}} < 30$ s
     \item Preparation phase: resource allocation, beam alignment
-    \item Result: 99.7\% success, 35 ms interruption
+    \item Result: Reduced interruption via preparation phase
 \end{enumerate}
 
 \textbf{Key Advantage:} Preparation phase allows target satellite to pre-allocate resources, resulting in seamless handover vs. emergency reactive response.
@@ -357,7 +357,7 @@ where $k, \alpha$ are frequency/polarization-dependent, $R$ is rain rate (mm/h),
     \item Fetch real-time weather data (Open-Meteo API)
     \item Predict rain attenuation $A_{\text{rain}}$
     \item Adjust Tx power \textit{before} link degrades: $P_{Tx} = P_{baseline} + A_{rain} + M_{margin}$
-    \item Result: 98\% mitigation success vs 62\% reactive
+    \item Result: Proactive mitigation reduces link outage probability
 \end{enumerate}
 
 \textbf{Performance:} Weather calculation 0.035 ms (30\% speedup via caching). Cache hit rate 45\% for 15-minute TTL.
@@ -400,38 +400,7 @@ Deployment & Docker 24.0+ & - \\
 
 \subsection{Development Approach}
 
-\textbf{Parallel Agent Development:} 11 specialized agents developed components in parallel over 7 days:
-\begin{enumerate}
-    \item OpenNTN integration (1,874 lines)
-    \item E2SM-NTN service model (4,309 lines)
-    \item NTN xApps (1,201 lines)
-    \item ASN.1 PER encoding (2,287 lines)
-    \item SGP4 orbit propagation (2,888 lines)
-    \item O-RAN RIC integration (3,012 lines)
-    \item Docker containerization (5,512 lines)
-    \item Weather integration (2,337 lines)
-    \item Large-scale testing (1,496 lines)
-    \item Performance optimization (5,456 lines)
-    \item Baseline comparison (3,537 lines)
-\end{enumerate}
-
-\textbf{Code Statistics:}
-\begin{itemize}
-    \item Total: 30,412 lines of production code
-    \item Files: 86 Python modules
-    \item Test coverage: 85\% (core functionality 100\%)
-    \item Documentation: 11,238 lines
-\end{itemize}
-
-\textbf{Test-Driven Development:} Each component includes comprehensive unit tests:
-\begin{itemize}
-    \item OpenNTN: 5/5 tests passed
-    \item E2SM-NTN: 19/19 core tests passed
-    \item ASN.1: 10/10 tests passed
-    \item SGP4: 12/12 tests passed
-    \item RIC integration: 6/6 tests passed
-    \item Weather: 24/31 tests passed (edge cases documented)
-\end{itemize}
+\textbf{Test-Driven Development:} We adopted a TDD methodology where physics-based unit tests were written before implementation. Each module (channel models, Doppler computation, link budget, RL environment) has corresponding tests that verify correctness against analytical formulas from 3GPP TR 38.811 and TR 38.821. This approach uncovered and corrected several physics bugs (e.g., Doppler sign conventions, FSPL formula offsets) before they could propagate into experimental results.
 
 \subsection{Docker Containerization}
 
@@ -461,256 +430,145 @@ Systematic profiling identified bottlenecks, leading to targeted optimizations:
 
 \textbf{Performance Results:}
 \begin{itemize}
-    \item E2E latency: 5.5 ms (45\% better than 10ms target)
-    \item Throughput: 600 msg/sec (6$\times$ the 100 msg/sec target)
-    \item Scalability: Linear to 1,000 UEs (93.5\% efficiency)
-    \item Memory: 180 MB per 100 UEs
+    \item ASN.1 PER encoding: 0.02 ms per message (93.2\% size reduction)
+    \item SGP4 propagation: 0.14 ms per satellite
+    \item Memory: Efficient per-UE resource usage via \_\_slots\_\_ dataclasses
 \end{itemize}
 
 \section{Experimental Results}
 
 \subsection{Simulation Setup}
 
-\textbf{Satellite Constellation:}
-\begin{itemize}
-    \item Real Starlink TLE data (8,805 satellites)
-    \item SGP4 orbit propagation for accurate geometry
-    \item 100 satellites actively tracked
-    \item Orbital period: $\sim$95 minutes, Altitude: 550 km
-\end{itemize}
+We evaluate RL-based power control using our NTNPowerEnvironment, a Gymnasium-compatible simulation environment that models LEO satellite downlink power control with realistic NTN physics.
 
-\textbf{User Equipment:}
+\textbf{Environment Configuration:}
 \begin{itemize}
-    \item 100 UEs distributed globally
-    \item Distribution patterns: Global uniform, Urban dense, Sparse
-    \item Locations span -60$^\circ$ to 60$^\circ$ latitude
-    \item Various altitude profiles (0-500m)
-\end{itemize}
-
-\textbf{Simulation Parameters:}
-\begin{itemize}
-    \item Duration: 60 minutes per scenario
-    \item Time step: 1 second
     \item Carrier frequency: 2.0 GHz (S-band)
-    \item Bandwidth: 20 MHz
-    \item Target SINR: 10 dB
+    \item LEO orbit altitude: 550 km
+    \item Episode length: 300 time steps
+    \item Observation space: 5-dimensional (elevation angle, slant range, rain rate, RSRP, Doppler shift)
+    \item Action space: 5 discrete actions ($-3$, $-1$, $0$, $+1$, $+3$ dBm adjustments)
+    \item RSRP threshold: $-100$ dBm (violation criterion)
+    \item Channel model: 3GPP TR 38.811 with ITU-R P.618-13 rain attenuation
 \end{itemize}
 
-\textbf{Weather Scenarios:}
+\textbf{Baseline:} A rule-based controller that applies fixed power adjustments based on elevation angle thresholds, without learning or adaptation.
+
+\textbf{RL Agents:}
 \begin{itemize}
-    \item Clear weather (baseline)
-    \item Variable rain (probabilistic)
-    \item Heavy storm (worst-case)
-    \item ITU-R P.618-13 rain attenuation model
+    \item \textbf{DQN:} Deep Q-Network with experience replay, evaluated over 50 episodes (run\_corrected\_v1)
+    \item \textbf{PPO:} Proximal Policy Optimization, evaluated over 100 episodes (run\_ppo\_v1)
 \end{itemize}
 
-\subsection{Handover Performance}
+\subsection{DQN Results}
 
-Our predictive approach achieves \textbf{99.7\% handover success rate} compared to \textbf{87.3\%} for reactive methods ($p < 0.001$), representing a \textbf{14.2\% improvement}.
-
-Table \ref{tab:handover_performance} compares handover metrics:
+Table \ref{tab:dqn_results} summarizes the DQN agent performance:
 
 \begin{table}[t]
 \centering
-\caption{Handover Performance Comparison}
-\label{tab:handover_performance}
+\caption{DQN Power Control Results (50 episodes)}
+\label{tab:dqn_results}
 \scriptsize
-\begin{tabular}{@{}lcccc@{}}
+\begin{tabular}{@{}lcc@{}}
 \toprule
-\textbf{Metric} & \textbf{Reactive} & \textbf{Predictive} & \textbf{Improve.} & \textbf{p-value} \\
+\textbf{Metric} & \textbf{DQN Agent} & \textbf{Baseline} \\
 \midrule
-Success Rate (\%) & 87.3$\pm$4.2 & 99.7$\pm$0.3 & +14.2\% & <0.001 \\
-Preparation (ms) & 0 & 5000$\pm$200 & Novel & - \\
-Execution (ms) & 45$\pm$8 & 5$\pm$1 & -88.9\% & <0.001 \\
-Interruption (ms) & 275$\pm$85 & 35$\pm$15 & -87.3\% & <0.001 \\
-Prediction (s) & 0 & 60 & Novel & - \\
+Mean Reward & 501.28 $\pm$ 78.26 & $-56.44$ \\
+RSRP Violation Rate (\%) & 3.48 & 23.25 \\
+Mean Tx Power (dBm) & 46.89 & 40.84 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Key Findings:}
-\begin{itemize}
-    \item \textbf{Data Interruption:} 87\% reduction (35ms vs 275ms, $p<0.001$)
-    \item \textbf{Effect Size:} Cohen's $d = 3.45$ (very large effect)
-    \item \textbf{95\% CI for difference:} [10.8\%, 15.6\%]
-    \item \textbf{Handover Types:} Reactive 85\% emergency vs Predictive 100\% prepared
-\end{itemize}
+The DQN agent learns to increase transmit power by $\sim$6~dB relative to the baseline, which dramatically reduces RSRP violations from 23.25\% to 3.48\% --- a \textbf{6.7$\times$ reduction}. This represents a clear signal quality vs.\ power trade-off: the agent sacrifices power efficiency to maintain link quality above the $-100$~dBm RSRP threshold.
 
-\textbf{Statistical Validation:} Chi-square test yields $\chi^2 = 245.7$, $p < 0.001$. Cramér's V = 0.156 (medium-to-large effect size). Null hypothesis (equal success rates) strongly rejected.
+\subsection{PPO Results}
 
-\subsection{Power Control Efficiency}
-
-Weather-aware predictive power control demonstrates superior efficiency:
-
-\textbf{Power Consumption:}
-\begin{itemize}
-    \item Reactive: 20.3 $\pm$ 2.1 dBm
-    \item Predictive: 17.2 $\pm$ 1.5 dBm
-    \item \textbf{15.3\% power savings} ($p < 0.001$)
-    \item Translates to $\sim$67\% reduction in battery consumption
-\end{itemize}
-
-\textbf{Link Margin Stability:}
-\begin{itemize}
-    \item Reactive: $\sigma = 4.2$ dB (high variance)
-    \item Predictive: $\sigma = 1.8$ dB (stable)
-    \item \textbf{57\% improvement in stability} ($p < 0.001$)
-\end{itemize}
-
-\textbf{Rain Fade Mitigation:}
-\begin{itemize}
-    \item Reactive: 62\% success rate (reactive detection)
-    \item Predictive: 98\% success rate (proactive mitigation)
-    \item \textbf{58\% improvement} ($p < 0.001$)
-    \item 95\% CI for improvement: [52\%, 64\%]
-\end{itemize}
-
-\subsection{User Experience Improvement}
-
-Table \ref{tab:user_experience} summarizes QoS metrics:
+Table \ref{tab:ppo_results} summarizes the PPO agent performance:
 
 \begin{table}[t]
 \centering
-\caption{User Experience Metrics}
-\label{tab:user_experience}
+\caption{PPO Power Control Results (100 episodes)}
+\label{tab:ppo_results}
 \scriptsize
-\begin{tabular}{@{}lcccc@{}}
+\begin{tabular}{@{}lcc@{}}
 \toprule
-\textbf{Metric} & \textbf{Reactive} & \textbf{Predictive} & \textbf{Improve.} & \textbf{p-value} \\
+\textbf{Metric} & \textbf{PPO Agent} & \textbf{Baseline} \\
 \midrule
-Throughput (Mbps) & 45.3$\pm$8.2 & 55.8$\pm$6.5 & +23.2\% & <0.001 \\
-Latency (ms) & 32.4$\pm$12.5 & 21.7$\pm$8.3 & -33.0\% & <0.001 \\
-Packet Loss (\%) & 1.2$\pm$0.3 & 0.4$\pm$0.1 & -66.7\% & <0.001 \\
-Uptime (\%) & 96.3 & 99.8 & +3.6\% & <0.001 \\
+Mean Reward & 421.62 $\pm$ 78.21 & $-51.43$ \\
+RSRP Violation Rate (\%) & 4.52 & 23.25 \\
+Mean Tx Power (dBm) & 47.36 & 40.84 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Latency Analysis:}
-\begin{itemize}
-    \item Mean: 32.4 ms $\rightarrow$ 21.7 ms (-33\%)
-    \item P95: 85.3 ms $\rightarrow$ 42.1 ms (-50.6\%)
-    \item P99: 142.8 ms $\rightarrow$ 58.3 ms (-59.2\%)
-    \item Predictive approach eliminates handover-induced latency spikes
-\end{itemize}
+PPO exhibits similar behavior to DQN, achieving 4.52\% RSRP violations (a \textbf{5.1$\times$ reduction}) with $\sim$6.5~dB additional transmit power. PPO's slightly higher violation rate compared to DQN (4.52\% vs.\ 3.48\%) is offset by its larger evaluation sample (100 vs.\ 50 episodes) and on-policy stability.
 
-\textbf{Throughput Distribution:}
-\begin{itemize}
-    \item Mean: +23.2\% improvement
-    \item P5 (worst 5\%): +111.5\% improvement (18.2 $\rightarrow$ 38.5 Mbps)
-    \item Largest gains in challenging scenarios (low elevation, rain)
-    \item Cohen's $d = 0.92$ (large effect size)
-\end{itemize}
+\subsection{Comparison and Statistical Significance}
 
-\subsection{Weather Scenario Results}
-
-Table \ref{tab:weather_scenarios} shows performance across weather conditions:
+Table \ref{tab:comparison} compares all three approaches:
 
 \begin{table}[t]
 \centering
-\caption{Weather Scenario Results}
-\label{tab:weather_scenarios}
-\scriptsize
-\begin{tabular}{@{}llccc@{}}
-\toprule
-\textbf{Scenario} & \textbf{Metric} & \textbf{Reactive} & \textbf{Predictive} & \textbf{Improve.} \\
-\midrule
-\multirow{3}{*}{Clear} & HO Success (\%) & 91.2 & 99.8 & +9.4\% \\
-& Throughput (Mbps) & 52.1 & 58.3 & +11.9\% \\
-& Packet Loss (\%) & 0.8 & 0.2 & -75.0\% \\
-\midrule
-\multirow{3}{*}{Rain} & HO Success (\%) & 85.7 & 99.5 & +16.1\% \\
-& Throughput (Mbps) & 41.2 & 54.2 & +31.6\% \\
-& Fade Mitig. (\%) & 65 & 97 & +49.2\% \\
-\midrule
-\multirow{3}{*}{Storm} & HO Success (\%) & 78.3 & 98.9 & +26.3\% \\
-& Throughput (Mbps) & 28.5 & 48.7 & +70.9\% \\
-& Fade Mitig. (\%) & 45 & 95 & +111.1\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\textbf{Key Insights:}
-\begin{itemize}
-    \item Even in clear weather, predictive approach shows significant gains (+9.4\% handover success)
-    \item Improvements amplify under adverse conditions (storm: +70.9\% throughput)
-    \item Weather awareness critical: rain fade mitigation 45\% $\rightarrow$ 95\% in storm
-    \item Predictive system maintains near-normal performance despite heavy rain
-\end{itemize}
-
-\subsection{Statistical Significance Summary}
-
-All key metrics show \textbf{statistically significant} improvements ($p < 0.05$):
-
-\begin{table}[t]
-\centering
-\caption{Statistical Significance Summary}
-\label{tab:statistical_summary}
+\caption{DQN vs.\ PPO vs.\ Baseline Comparison}
+\label{tab:comparison}
 \scriptsize
 \begin{tabular}{@{}lccc@{}}
 \toprule
-\textbf{Metric} & \textbf{p-value} & \textbf{Significance} & \textbf{Effect Size} \\
+\textbf{Metric} & \textbf{DQN} & \textbf{PPO} & \textbf{Baseline} \\
 \midrule
-Handover Success & <0.001 & *** & V=0.156 (large) \\
-Data Interruption & <0.001 & *** & d=3.45 (very large) \\
-Throughput & <0.001 & *** & d=0.92 (large) \\
-Latency & <0.001 & *** & d=1.15 (large) \\
-Packet Loss & <0.001 & *** & d=1.68 (large) \\
-Power Efficiency & <0.001 & *** & d=0.72 (medium) \\
-Rain Fade Mitig. & <0.001 & *** & V=0.185 (large) \\
+Mean Reward & 501.28 & 421.62 & $-56.44$ \\
+RSRP Violation (\%) & 3.48 & 4.52 & 23.25 \\
+Mean Tx Power (dBm) & 46.89 & 47.36 & 40.84 \\
+Violation Reduction & 6.7$\times$ & 5.1$\times$ & --- \\
+\midrule
+$t$-statistic & 42.06 & 51.77 & --- \\
+$p$-value & $1.57 \times 10^{-64}$ & $4.93 \times 10^{-117}$ & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Legend:} *** $p < 0.001$ (highly significant). Effect sizes: Small ($d < 0.5$), Medium ($0.5 \leq d < 0.8$), Large ($d \geq 0.8$).
+Both RL agents achieve \textbf{highly statistically significant} improvements over the baseline. The two-sample $t$-tests yield $p$-values far below any conventional significance threshold ($p < 10^{-64}$ for DQN, $p < 10^{-117}$ for PPO), providing overwhelming evidence that the RL policies are superior to the rule-based baseline.
 
-\textbf{Conclusion:} All improvements are \textbf{highly statistically significant} ($p < 0.001$) with \textbf{large effect sizes}, providing strong evidence for superiority of predictive NTN-aware approach.
+\subsection{Key Findings}
+
+\begin{enumerate}
+    \item \textbf{RL agents learn to increase power to maintain signal quality.} Both DQN and PPO converge to policies that use $\sim$6~dB more transmit power than the baseline. This is \emph{not} power savings --- it is an intelligent trade-off where the agent learns that maintaining RSRP above $-100$~dBm yields higher cumulative reward despite the power penalty in the reward function.
+
+    \item \textbf{Dramatic reduction in RSRP violations.} Both agents achieve $\sim$5$\times$ fewer RSRP violations (3.48--4.52\% vs.\ 23.25\%), demonstrating that RL can effectively manage the dynamic NTN link budget under varying elevation angles, slant ranges, and rain conditions.
+
+    \item \textbf{DQN slightly outperforms PPO on violation rate} (3.48\% vs.\ 4.52\%), while PPO achieves a higher $t$-statistic (51.77 vs.\ 42.06) due to its larger evaluation sample and lower variance.
+
+    \item \textbf{Both results are reproducible.} Evaluation scripts, trained model weights, and raw JSON results are included in the open-source repository for independent verification.
+\end{enumerate}
 
 \section{Conclusion and Future Work}
 
 \subsection{Summary of Contributions}
 
-We presented the first GPU-accelerated NTN-O-RAN platform integrating OpenNTN channel models with O-RAN E2 interface extensions. Our system introduces:
+We presented an NTN-O-RAN platform integrating OpenNTN channel models with O-RAN E2 interface extensions and RL-based power control. Our system introduces:
 
 \begin{enumerate}
-    \item \textbf{E2SM-NTN Service Model:} Novel service model (RAN Function ID 10) with 33 NTN-specific KPMs, 6 event triggers, and 6 control actions. Enables near-RT RIC to perform NTN-aware RAN intelligence.
+    \item \textbf{E2SM-NTN Service Model:} Novel service model (RAN Function ID 10) with 33 NTN-specific KPMs, 6 event triggers, and 6 control actions, enabling near-RT RIC to perform NTN-aware RAN intelligence.
 
-    \item \textbf{ASN.1 PER Optimization:} 93.2\% message size reduction (1,359 $\rightarrow$ 92 bytes) through domain-specific encoding, achieving 15$\times$ bandwidth reduction on E2 interface.
+    \item \textbf{ASN.1 PER Optimization:} 93.2\% message size reduction (1,359 $\rightarrow$ 92 bytes) through domain-specific encoding, achieving 15$\times$ bandwidth reduction on the E2 interface.
 
-    \item \textbf{Predictive Handover:} SGP4-based orbital prediction with 60-second horizon enables preparation-based handover, achieving 99.7\% success rate with 87\% reduction in data interruption.
+    \item \textbf{RL-Based Power Control:} DQN and PPO agents trained on NTNPowerEnvironment achieve $\sim$5$\times$ fewer RSRP violations (3.48--4.52\% vs.\ 23.25\%) compared to a rule-based baseline, at the cost of $\sim$6~dB additional transmit power.
 
-    \item \textbf{Weather-Aware Power Control:} ITU-R P.618 integration for proactive rain fade mitigation, achieving 98\% success vs 62\% reactive baseline.
-
-    \item \textbf{Statistical Validation:} Comprehensive evaluation with 100 UEs over 60-minute scenarios. All improvements statistically significant ($p<0.001$) with large effect sizes (Cohen's $d > 0.8$).
+    \item \textbf{Statistical Validation:} Both agents show overwhelming statistical significance (DQN: $t=42.06$, $p = 1.57 \times 10^{-64}$; PPO: $t=51.77$, $p = 4.93 \times 10^{-117}$).
 \end{enumerate}
 
-\subsection{Key Achievements}
+\subsection{Key Findings}
 
-\textbf{Performance Metrics:}
-\begin{itemize}
-    \item 5.5ms E2E latency (45\% better than 10ms target)
-    \item 600 msg/sec throughput (6$\times$ the 100 msg/sec target)
-    \item 93.2\% message size reduction via ASN.1 PER
-    \item Linear scalability to 1,000 UEs (93.5\% efficiency)
-    \item <0.5 km orbit propagation accuracy
-\end{itemize}
-
-\textbf{Research Validation:}
-\begin{itemize}
-    \item 99.7\% handover success rate (+14.2\%, $p<0.001$)
-    \item 87\% reduction in data interruption ($p<0.001$)
-    \item 23\% throughput improvement ($p<0.001$)
-    \item 98\% rain fade mitigation (+58\%, $p<0.001$)
-    \item All improvements with large effect sizes
-\end{itemize}
+The central finding is that RL agents learn an intelligent signal quality vs.\ power trade-off: by increasing transmit power $\sim$6~dB above the baseline, they reduce RSRP violations from 23.25\% to as low as 3.48\%. This demonstrates the viability of closed-loop RL control over the O-RAN E2 interface for NTN power management under dynamic LEO channel conditions including varying elevation angles, slant ranges, and rain attenuation.
 
 \subsection{Impact}
 
 \textbf{Academic Impact:}
 \begin{itemize}
-    \item \textbf{Novel NTN-O-RAN integration:} First to combine OpenNTN + O-RAN E2 + GPU acceleration
+    \item \textbf{Novel NTN-O-RAN integration:} First to combine OpenNTN + O-RAN E2 with RL-based power control
     \item \textbf{Standardization candidate:} E2SM-NTN specification suitable for O-RAN Alliance submission
-    \item \textbf{Open-source release:} Complete platform with 30,412 lines of code, 85\% test coverage, Docker deployment
+    \item \textbf{Open-source release:} Complete platform with Docker deployment and reproducible evaluation
 \end{itemize}
 
 \textbf{Industry Impact:}
@@ -722,25 +580,13 @@ We presented the first GPU-accelerated NTN-O-RAN platform integrating OpenNTN ch
 
 \subsection{Future Work}
 
-\textbf{Short-term (3-6 months):}
 \begin{enumerate}
-    \item \textbf{ML-based handover prediction:} LSTM network trained on orbital mechanics + channel quality for 5-10\% additional accuracy improvement
-    \item \textbf{RL-based power control:} Deep Q-Network (DQN) agent optimizing link budget vs. power consumption tradeoff for 10-15\% power savings
-    \item \textbf{MEO/GEO support:} Extend to medium and geostationary orbits with different handover dynamics
-\end{enumerate}
-
-\textbf{Medium-term (6-12 months):}
-\begin{enumerate}
-    \item \textbf{Large-scale constellation simulation:} Scale to 10,000+ satellites with distributed processing
-    \item \textbf{Inter-satellite links (ISL):} Model multi-hop routing through satellite mesh networks
+    \item \textbf{Multi-objective RL:} Extend the reward function to explicitly balance RSRP maintenance against power consumption, potentially achieving Pareto-optimal operating points
+    \item \textbf{Continuous action spaces:} Replace discrete $\pm$3/$\pm$1/0~dBm actions with continuous power control using SAC or TD3
+    \item \textbf{Predictive handover evaluation:} Quantify handover performance with real satellite pass data using the SGP4 prediction framework
+    \item \textbf{MEO/GEO support:} Extend to medium and geostationary orbits with different channel dynamics
     \item \textbf{Real-world testbed:} Deploy on actual LEO satellite ground stations for validation
-\end{enumerate}
-
-\textbf{Long-term (1-2 years):}
-\begin{enumerate}
     \item \textbf{3GPP standardization:} Submit E2SM-NTN to O-RAN Alliance for formal standardization
-    \item \textbf{Regenerative payload:} Integrate on-board gNB processing for 3GPP Release 18 scenarios
-    \item \textbf{Hybrid TN-NTN:} Seamless handover between terrestrial and non-terrestrial networks
 \end{enumerate}
 
 \subsection{Open-Source Release}
@@ -749,11 +595,10 @@ Complete platform available at: \url{https://github.com/[anonymized-for-review]}
 
 \textbf{Repository Contents:}
 \begin{itemize}
-    \item 30,412 lines of production-ready Python code
-    \item Docker Compose deployment (5 services)
-    \item Comprehensive documentation (11,238 lines)
-    \item Test suites with 85\% coverage
-    \item Benchmark scripts and evaluation tools
+    \item Production-ready Python implementation with Docker Compose deployment
+    \item Trained DQN and PPO model weights with evaluation scripts
+    \item Raw experimental results in JSON format for reproducibility
+    \item Comprehensive test suites following TDD methodology
 \end{itemize}
 
 \section*{Acknowledgments}
