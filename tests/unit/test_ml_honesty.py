@@ -25,16 +25,10 @@ Date: 2026-04-05
 import numpy as np
 import pytest
 import os
-import sys
 
 TRAIN_MODEL_PATH = os.path.join(
     os.path.dirname(__file__),
     '../../03-Implementation/ntn-simulation/ml_handover/train_model.py'
-)
-
-DATA_GENERATOR_PATH = os.path.join(
-    os.path.dirname(__file__),
-    '../../03-Implementation/ntn-simulation/ml_handover'
 )
 
 
@@ -152,7 +146,7 @@ class TestMLPredictionDependsOnFeatures:
         # Binary labels (50% positive)
         y_test = (np.random.rand(1000) > 0.5).astype(float)
 
-        # Naive threshold-based baseline: predict 1 if last RSRP < -85 dBm
+        # Naive threshold-based baseline: predict 1 if last feature < 0 (median)
         # Using random features, this is ~50% accurate
         last_rsrp = X_test[:, -1, 0]  # arbitrary feature
         y_pred = (last_rsrp < 0).astype(float)  # threshold at 0 (median)

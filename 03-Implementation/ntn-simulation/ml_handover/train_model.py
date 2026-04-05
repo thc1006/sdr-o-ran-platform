@@ -157,15 +157,14 @@ def main():
     y_pred_ml = trainer.model.predict(X_test)
     y_pred_ml = np.clip(y_pred_ml, 0, 1)
 
-    # Threshold-based reactive baseline: predict handover when RSRP < -80 dBm
-    # Uses the last timestep's RSRP feature (index 0) from the sequence
-    rsrp_feature_idx = 0
-    rsrp_threshold = -80.0
+    # Threshold-based reactive baseline: median split on normalized RSRP feature
+    # Uses the last timestep's RSRP feature (index 1) from the sequence
+    rsrp_feature_idx = 1
     last_rsrp = X_test[:, -1, rsrp_feature_idx]
-    # Normalize: feature is stored as (rsrp - mean) / std; approximate raw value
     # Use median split as conservative threshold if normalization is unknown
     rsrp_median = np.median(last_rsrp)
-    y_pred_baseline = (last_rsrp < rsrp_median).astype(float).reshape(-1, 1)
+    baseline_time_pred = (last_rsrp < rsrp_median).astype(float).reshape(-1, 1)
+    y_pred_baseline = np.column_stack((baseline_time_pred, np.full(len(baseline_time_pred), 0.5)))
 
     evaluator = HandoverEvaluator()
     eval_results = evaluator.evaluate_full_pipeline(y_test, y_pred_ml, y_pred_baseline)
