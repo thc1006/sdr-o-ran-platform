@@ -76,11 +76,15 @@ class TestObservationSpace:
     def test_observation_stays_valid_during_episode(self, env):
         """All observations during an episode must be within bounds."""
         obs, _ = env.reset(seed=7)
+        low = env.observation_space.low
+        high = env.observation_space.high
         for _ in range(30):
             action = env.action_space.sample()
             obs, _, terminated, truncated, _ = env.step(action)
             assert not np.any(np.isnan(obs)), f"NaN in observation: {obs}"
             assert not np.any(np.isinf(obs)), f"Inf in observation: {obs}"
+            assert np.all(obs >= low - 1e-6), f"Observation below low bound: {obs} < {low}"
+            assert np.all(obs <= high + 1e-6), f"Observation above high bound: {obs} > {high}"
             if terminated or truncated:
                 break
 
@@ -119,9 +123,23 @@ class TestRSRPPhysics:
 
         # Take max power action (action 4 = +3 dB)
         obs2, _, _, _, info = env.step(4)
+        rsrp_after = env.rsrp_dbm
         power_after = env.current_power_dbm
 
         assert power_after >= power_before, "Action 4 must not decrease power"
+
+        # RSRP must increase when power increases (fading_sigma=0 so deterministic)
+        power_delta = power_after - power_before
+        rsrp_delta = rsrp_after - rsrp_before
+        assert rsrp_after > rsrp_before, (
+            f"RSRP should increase with higher power: before={rsrp_before:.1f}, after={rsrp_after:.1f}"
+        )
+        # RSRP delta should roughly track power delta (within tolerance for
+        # elevation change between steps)
+        assert abs(rsrp_delta - power_delta) < 5.0, (
+            f"RSRP delta ({rsrp_delta:.2f} dB) should roughly match power delta "
+            f"({power_delta:.2f} dB), difference={abs(rsrp_delta - power_delta):.2f}"
+        )
 
     def test_satellite_elevation_changes_over_episode(self, env):
         """Satellite elevation must vary over the episode (not static)."""
@@ -273,14 +291,17 @@ class TestEpisodeTermination:
     def test_episode_terminates_on_severe_violation(self, env):
         """Severe RSRP violation (>5 dB below threshold) must terminate episode."""
         env.reset(seed=0)
-        # Force RSRP to severe violation level
+        # Force RSRP to severe violation level so step() recalculates below threshold
         env.rsrp_dbm = env.rsrp_threshold_dbm - 10.0
-        # Check if terminate condition fires
+        # Force power to minimum so RSRP stays low after recalculation
+        env.current_power_dbm = env.min_power_dbm
+        _, _, terminated, _, info = env.step(2)  # hold power
+        # The step recalculates RSRP; if it's still below threshold - 5 dB, terminated must be True
         if env.rsrp_dbm < env.rsrp_threshold_dbm - 5.0:
-            # The step function would set terminated=True here
-            # We just verify the threshold is set correctly
-            assert env.rsrp_threshold_dbm - 5.0 < env.rsrp_dbm + 10.0, \
-                "Severe violation threshold should be 5 dB below rsrp_threshold_dbm"
+            assert terminated, (
+                f"Episode should terminate on severe RSRP violation: "
+                f"RSRP={env.rsrp_dbm:.1f} dBm < threshold-5={env.rsrp_threshold_dbm - 5.0:.1f} dBm"
+            )
 
 
 if __name__ == '__main__':

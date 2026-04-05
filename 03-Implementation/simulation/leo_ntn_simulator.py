@@ -38,14 +38,14 @@ def generate_leo_iq_samples(sample_rate=30.72e6, duration=0.01, elevation_deg=45
     k_factor = 10 ** (k_factor_db / 10)
     los = np.sqrt(k_factor / (k_factor + 1))
     scatter = np.sqrt(1 / (2 * (k_factor + 1)))
-    h = los + scatter * (np.random.randn(num_samples) + 1j * np.random.randn(num_samples))
+    channel_coeff = los + scatter * (np.random.randn(num_samples) + 1j * np.random.randn(num_samples))
 
     # AWGN
     snr_db = 10
     noise_power = 10 ** (-snr_db / 10)
     noise = np.sqrt(noise_power / 2) * (np.random.randn(num_samples) + 1j * np.random.randn(num_samples))
 
-    signal = carrier * h + noise
+    signal = carrier * channel_coeff + noise
     signal = signal / np.max(np.abs(signal))
 
     return signal.astype(np.complex64), doppler_hz
@@ -80,7 +80,7 @@ def main():
     time.sleep(2)  # Allow subscribers to connect
 
     frame_count = 0
-    pass_duration_frames = 600  # 10 minutes at 100 Hz = 60,000 frames per pass
+    pass_duration_frames = 600  # 600 frames at 100 Hz = 6 seconds simulated pass
     while True:
         # Simulate satellite pass trajectory
         pass_progress = (frame_count % pass_duration_frames) / pass_duration_frames

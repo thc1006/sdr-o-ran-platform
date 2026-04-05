@@ -50,12 +50,14 @@ class TestRSRPDeterministic:
     @pytest.fixture
     def env(self):
         from ntn_env import NTNPowerEnvironment
-        return NTNPowerEnvironment({
+        e = NTNPowerEnvironment({
             'episode_length': 10,
             'carrier_freq_hz': 2e9,
             'fading_sigma_db': 0.0,   # disable fading for deterministic test
             'base_antenna_gain_db': 35.0,
         })
+        e.reset(seed=0)
+        return e
 
     def test_rsrp_30deg_matches_formula(self, env):
         """RSRP at 30° elevation must match analytical calculation ±1 dB."""
@@ -166,6 +168,7 @@ class TestRSRPWithFading:
             'episode_length': 10,
             'fading_sigma_db': 0.0,
         })
+        env_det.reset(seed=42)
         det_rsrp = env_det._calculate_rsrp(46.0, sr, 45.0, 0.0)
 
         # Sample many RSRP values

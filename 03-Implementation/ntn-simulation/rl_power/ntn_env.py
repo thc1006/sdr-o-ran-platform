@@ -333,7 +333,7 @@ class NTNPowerEnvironment(gym.Env):
 
         # Antenna gain (elevation-dependent)
         # 3GPP TR 38.821: Satellite Tx ~30 dBi + UE Rx ~5 dBi = 35 dBi combined
-        # Small elevation bonus (beamforming gain toward horizon) per TR 38.811
+        # Small elevation bonus (beamforming gain toward zenith) per TR 38.811
         elevation_factor = 2.0 * np.sin(np.radians(elevation_deg))  # 0 to 2 dB
         antenna_gain_db = self.base_antenna_gain_db + elevation_factor
 
