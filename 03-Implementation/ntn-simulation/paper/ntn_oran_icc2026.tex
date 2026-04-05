@@ -30,7 +30,7 @@
 \maketitle
 
 \begin{abstract}
-Non-Terrestrial Networks (NTN) are critical for global 6G coverage, yet current O-RAN platforms lack comprehensive NTN support. We present an NTN-O-RAN platform integrating OpenNTN channel models with O-RAN E2 interface extensions, featuring three key contributions: (1) a novel E2SM-NTN service model with 33 NTN-specific KPMs enabling intelligent RAN control for satellite networks, (2) ASN.1 PER encoding achieving 93\% message size reduction (1,359 bytes to 92 bytes), and (3) reinforcement learning-based power control using DQN and PPO agents that achieve approximately 5$\times$ fewer RSRP violations compared to a rule-based baseline (3.48\% and 4.52\% vs.\ 23.25\%), at the cost of $\sim$6~dB higher transmit power. Both RL results are highly statistically significant (DQN: $t=42.06$, $p<10^{-64}$; PPO: $t=51.77$, $p<10^{-117}$). Our open-source implementation provides production-ready Docker containers and serves as a standardization candidate for O-RAN NTN extensions.
+Non-Terrestrial Networks (NTN) are critical for global 6G coverage, yet current O-RAN platforms lack comprehensive NTN support. We present an NTN-O-RAN platform integrating OpenNTN channel models with O-RAN E2 interface extensions, featuring three key contributions: (1) a novel E2SM-NTN service model with 33 NTN-specific KPMs enabling intelligent RAN control for satellite networks, (2) ASN.1 PER encoding achieving 93\% message size reduction (1,359 bytes to 92 bytes), and (3) reinforcement learning-based power control using DQN and PPO agents that achieve approximately 5$\times$ fewer RSRP violations compared to a rule-based baseline (3.48\% and 4.52\% vs.\ 18.63--23.25\%), at the cost of $\sim$6~dB higher transmit power. Both RL results are highly statistically significant (DQN: $t=42.06$, $p<10^{-64}$; PPO: $t=51.77$, $p<10^{-117}$). Our open-source implementation provides production-ready Docker containers and serves as a standardization candidate for O-RAN NTN extensions.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -474,13 +474,13 @@ Table \ref{tab:dqn_results} summarizes the DQN agent performance:
 \textbf{Metric} & \textbf{DQN Agent} & \textbf{Baseline} \\
 \midrule
 Mean Reward & 501.28 $\pm$ 78.26 & $-56.44$ \\
-RSRP Violation Rate (\%) & 3.48 & 23.25 \\
-Mean Tx Power (dBm) & 46.89 & 40.84 \\
+RSRP Violation Rate (\%) & 3.48 & 18.63 \\
+Mean Tx Power (dBm) & 46.89 & 40.68 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The DQN agent learns to increase transmit power by $\sim$6~dB relative to the baseline, which dramatically reduces RSRP violations from 23.25\% to 3.48\% --- a \textbf{6.7$\times$ reduction}. This represents a clear signal quality vs.\ power trade-off: the agent sacrifices power efficiency to maintain link quality above the $-100$~dBm RSRP threshold.
+The DQN agent learns to increase transmit power by $\sim$6~dB relative to the baseline, which dramatically reduces RSRP violations from 18.63\% to 3.48\% --- a \textbf{5.3$\times$ reduction}. This represents a clear signal quality vs.\ power trade-off: the agent sacrifices power efficiency to maintain link quality above the $-100$~dBm RSRP threshold.
 
 \subsection{PPO Results}
 
@@ -515,18 +515,20 @@ Table \ref{tab:comparison} compares all three approaches:
 \scriptsize
 \begin{tabular}{@{}lccc@{}}
 \toprule
-\textbf{Metric} & \textbf{DQN} & \textbf{PPO} & \textbf{Baseline} \\
+\textbf{Metric} & \textbf{DQN} & \textbf{PPO} & \textbf{Baseline$^\dagger$} \\
 \midrule
-Mean Reward & 501.28 & 421.62 & $-56.44$ \\
-RSRP Violation (\%) & 3.48 & 4.52 & 23.25 \\
-Mean Tx Power (dBm) & 46.89 & 47.36 & 40.84 \\
-Violation Reduction & 6.7$\times$ & 5.1$\times$ & --- \\
+Mean Reward & 501.28 & 421.62 & $-56.44$ / $-51.43$ \\
+RSRP Violation (\%) & 3.48 & 4.52 & 18.63 / 23.25 \\
+Mean Tx Power (dBm) & 46.89 & 47.36 & 40.68 / 40.84 \\
+Violation Reduction & 5.3$\times$ & 5.1$\times$ & --- \\
 \midrule
 $t$-statistic & 42.06 & 51.77 & --- \\
 $p$-value & $1.57 \times 10^{-64}$ & $4.93 \times 10^{-117}$ & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+{\footnotesize $^\dagger$Baseline values differ between DQN/PPO runs due to stochastic evaluation (DQN/PPO respectively).}
 
 Both RL agents achieve \textbf{highly statistically significant} improvements over the baseline. The two-sample $t$-tests yield $p$-values far below any conventional significance threshold ($p < 10^{-64}$ for DQN, $p < 10^{-117}$ for PPO), providing overwhelming evidence that the RL policies are superior to the rule-based baseline.
 
@@ -535,7 +537,7 @@ Both RL agents achieve \textbf{highly statistically significant} improvements ov
 \begin{enumerate}
     \item \textbf{RL agents learn to increase power to maintain signal quality.} Both DQN and PPO converge to policies that use $\sim$6~dB more transmit power than the baseline. This is \emph{not} power savings --- it is an intelligent trade-off where the agent learns that maintaining RSRP above $-100$~dBm yields higher cumulative reward despite the power penalty in the reward function.
 
-    \item \textbf{Dramatic reduction in RSRP violations.} Both agents achieve $\sim$5$\times$ fewer RSRP violations (3.48--4.52\% vs.\ 23.25\%), demonstrating that RL can effectively manage the dynamic NTN link budget under varying elevation angles, slant ranges, and rain conditions.
+    \item \textbf{Dramatic reduction in RSRP violations.} Both agents achieve $\sim$5$\times$ fewer RSRP violations (3.48--4.52\% vs.\ 18.63--23.25\%), demonstrating that RL can effectively manage the dynamic NTN link budget under varying elevation angles, slant ranges, and rain conditions.
 
     \item \textbf{DQN slightly outperforms PPO on violation rate} (3.48\% vs.\ 4.52\%), while PPO achieves a higher $t$-statistic (51.77 vs.\ 42.06) due to its larger evaluation sample and lower variance.
 
@@ -553,14 +555,14 @@ We presented an NTN-O-RAN platform integrating OpenNTN channel models with O-RAN
 
     \item \textbf{ASN.1 PER Optimization:} 93.2\% message size reduction (1,359 $\rightarrow$ 92 bytes) through domain-specific encoding, achieving 15$\times$ bandwidth reduction on the E2 interface.
 
-    \item \textbf{RL-Based Power Control:} DQN and PPO agents trained on NTNPowerEnvironment achieve $\sim$5$\times$ fewer RSRP violations (3.48--4.52\% vs.\ 23.25\%) compared to a rule-based baseline, at the cost of $\sim$6~dB additional transmit power.
+    \item \textbf{RL-Based Power Control:} DQN and PPO agents trained on NTNPowerEnvironment achieve $\sim$5$\times$ fewer RSRP violations (3.48--4.52\% vs.\ 18.63--23.25\%) compared to a rule-based baseline, at the cost of $\sim$6~dB additional transmit power.
 
     \item \textbf{Statistical Validation:} Both agents show overwhelming statistical significance (DQN: $t=42.06$, $p = 1.57 \times 10^{-64}$; PPO: $t=51.77$, $p = 4.93 \times 10^{-117}$).
 \end{enumerate}
 
 \subsection{Key Findings}
 
-The central finding is that RL agents learn an intelligent signal quality vs.\ power trade-off: by increasing transmit power $\sim$6~dB above the baseline, they reduce RSRP violations from 23.25\% to as low as 3.48\%. This demonstrates the viability of closed-loop RL control over the O-RAN E2 interface for NTN power management under dynamic LEO channel conditions including varying elevation angles, slant ranges, and rain attenuation.
+The central finding is that RL agents learn an intelligent signal quality vs.\ power trade-off: by increasing transmit power $\sim$6~dB above the baseline, they reduce RSRP violations from 18.63--23.25\% to as low as 3.48\%. This demonstrates the viability of closed-loop RL control over the O-RAN E2 interface for NTN power management under dynamic LEO channel conditions including varying elevation angles, slant ranges, and rain attenuation.
 
 \subsection{Impact}
 
