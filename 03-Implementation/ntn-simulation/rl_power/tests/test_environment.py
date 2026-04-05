@@ -45,8 +45,7 @@ class TestNTNPowerEnvironment:
             'initial_power_dbm': 20.0,
             'target_rsrp_dbm': -85.0,
             'rsrp_threshold_dbm': -90.0,
-            'power_penalty_weight': 0.01,
-            'rsrp_violation_penalty': 100.0
+            'power_penalty_weight': 0.01
         }
         return NTNPowerEnvironment(config=config)
 

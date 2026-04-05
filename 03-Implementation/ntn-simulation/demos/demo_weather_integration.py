@@ -272,12 +272,11 @@ class WeatherIntegrationDemo:
         # Calculate free space path loss only
         earth_radius_km = 6371.0
         satellite_altitude_km = 600.0  # LEO
-        central_angle = (90 - elevation_angle) * np.pi / 180
+        elevation_rad = np.radians(elevation_angle)
         slant_range_km = np.sqrt(
-            earth_radius_km**2 + (earth_radius_km + satellite_altitude_km)**2 -
-            2 * earth_radius_km * (earth_radius_km + satellite_altitude_km) *
-            np.cos(central_angle)
-        )
+            (earth_radius_km + satellite_altitude_km)**2 -
+            (earth_radius_km * np.cos(elevation_rad))**2
+        ) - earth_radius_km * np.sin(elevation_rad)
 
         freq_hz = frequency_ghz * 1e9
         wavelength_m = 3e8 / freq_hz

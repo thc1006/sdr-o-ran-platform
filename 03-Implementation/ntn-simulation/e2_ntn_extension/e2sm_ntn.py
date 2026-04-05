@@ -490,16 +490,20 @@ class E2SM_NTN:
         self,
         satellite_velocity: float,
         elevation_angle: float,
-        carrier_frequency_ghz: float
+        carrier_frequency_ghz: float,
+        altitude_km: float = 600.0
     ) -> float:
         """
-        Calculate Doppler shift in Hz
+        Calculate maximum Doppler shift magnitude in Hz.
 
-        Formula: doppler = (v/c) * f * cos(elevation)
+        Uses geometric correction per 3GPP TR 38.821:
+          v_radial = v_sat * R_e * cos(el) / (R_e + h)
+          doppler = v_radial / c * f_carrier
         """
+        R_e = 6371.0  # Earth radius (km)
         elevation_rad = np.radians(elevation_angle)
-        doppler_shift = (satellite_velocity / self.SPEED_OF_LIGHT) * \
-                       (carrier_frequency_ghz * 1e9) * np.cos(elevation_rad)
+        v_radial = satellite_velocity * R_e * np.cos(elevation_rad) / (R_e + altitude_km)
+        doppler_shift = (v_radial / self.SPEED_OF_LIGHT) * (carrier_frequency_ghz * 1e9)
         return float(doppler_shift)
 
     def _calculate_propagation_delay(self, slant_range_km: float) -> float:
