@@ -143,6 +143,8 @@ jobs:
           pip install gymnasium
           # passlib argon2 backend (required by api-gateway at import time)
           pip install argon2-cffi
+          # redis client (imported at module level by drl_trainer.py)
+          pip install redis
           # API gateway deps (note: fastapi==0.109.0 requires starlette<0.36;
           # test_api_gateway.py is excluded from unit tests to avoid version conflicts)
           if [ -f 03-Implementation/sdr-platform/api-gateway/requirements.txt ]; then
